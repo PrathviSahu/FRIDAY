@@ -10,7 +10,6 @@ import TodoCard from './components/Panels/TodoCard';
 import SystemMonitorCard from './components/Panels/SystemMonitorCard';
 import WeatherCard from './components/Panels/WeatherCard';
 import WebSearchCard from './components/Panels/WebSearchCard';
-import TradingCard from './components/Panels/TradingCard';
 import { FridayProvider } from './context/FridayContext';
 import FridaySync from './context/FridaySync';
 import { useProactiveSuggestions } from './hooks/useProactiveSuggestions';
@@ -36,7 +35,6 @@ function FridayCore() {
             <SystemMonitorCard />
             <WeatherCard />
             <WebSearchCard />
-            <TradingCard />
             <DebugKeys />
 
             {/* ── Proactive Suggestion Toast ── */}
