@@ -242,6 +242,11 @@ export function useSpeech({ locked, isLocked, workspace = 'unlocked', enabled = 
         const localCommand = matchVoiceCommand(cmd);
         if (localCommand) {
           onCommandRef.current?.(localCommand);
+          const reply = localCommand === 'trading' ? 'Opening Personal Trading Station, Prem.' : localCommand === 'dashboard' ? 'Opening Dashboard, Prem.' : 'Executing command, Prem.';
+          onConvRef.current?.({ transcript: cmd, reply, action: localCommand });
+          speakingRef.current = true;
+          try { await withTimeout(speak(reply), 10000); } catch (_) {}
+          speakingRef.current = false;
           return;
         }
 
