@@ -229,6 +229,19 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "shuffle"}
 
+        # 4.7. NEXT TRACK / PREVIOUS TRACK SHORTCUTS (must come BEFORE generic play-song shortcut)
+        if re.search(r'\b(?:next|skip|play next|next song|next track)\b', lower_text):
+            execute_system_command("next_track", "")
+            reply_msg = "Skipping to the next track, Prem."
+            log_conversation(role="assistant", message=reply_msg)
+            return {"reply": reply_msg, "action": "next_track"}
+
+        if re.search(r'\b(?:previous|prev|previous song|previous track|play previous|go back)\b', lower_text):
+            execute_system_command("previous_track", "")
+            reply_msg = "Playing the previous track, Prem."
+            log_conversation(role="assistant", message=reply_msg)
+            return {"reply": reply_msg, "action": "previous_track"}
+
         # 5. PHONETIC SONG SHORTCUT
         if any(kw in lower_text for kw in ["tempo city", "help away", "temper city", "temple city"]):
             target_song = "Self Aware by Temper City"
@@ -245,7 +258,7 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
         if play_match:
             raw_song = play_match.group(1)
             cleaned_song = re.sub(r'\s*on spotify\s*$', '', raw_song).strip()
-            if cleaned_song and cleaned_song not in ["music", "spotify", "playlist", "hindi", "english", "volume", "sound", "it", "this"]:
+            if cleaned_song and cleaned_song not in ["music", "spotify", "playlist", "hindi", "english", "volume", "sound", "it", "this", "next", "next song", "next track", "previous", "previous song", "previous track"]:
                 execute_system_command("play_specific", cleaned_song, volume_percent=extracted_vol)
                 msg = f"Opening Spotify and playing '{cleaned_song}', Prem."
                 log_conversation(role="assistant", message=msg)
