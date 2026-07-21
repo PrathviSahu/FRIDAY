@@ -1,39 +1,39 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Sliders, X } from 'lucide-react';
 
-// Free real-time streamable symbols (US NASDAQ, Indian NSE, Gold, Forex, Crypto)
 const FULL_REALTIME_WATCHLIST = [
-    'OANDA:XAUUSD',     // Gold Spot (Free live real-time)
-    'NASDAQ:NDX',       // NASDAQ 100 Index
-    'NASDAQ:NVDA',      // NVIDIA
-    'NASDAQ:AAPL',      // Apple
-    'NASDAQ:TSLA',      // Tesla
-    'CAPITALCOM:DXY',   // US Dollar Index
-    'BINANCE:BTCUSDT',  // Bitcoin
-    'BINANCE:ETHUSDT',  // Ethereum
-    'BINANCE:SOLUSDT',  // Solana
-    'FX:EURUSD',        // EUR/USD
-    'FX:GBPUSD',        // GBP/USD
-    'NSE:NIFTY',        // NIFTY 50
-    'NSE:BANKNIFTY',   // BANK NIFTY
-    'NSE:RELIANCE',    // Reliance
-    'NSE:TCS',         // TCS
-    'NSE:INFY',        // Infosys
-    'NSE:HDFCBANK',    // HDFC Bank
+    'OANDA:XAUUSD',
+    'NASDAQ:NDX',
+    'NASDAQ:NVDA',
+    'NASDAQ:AAPL',
+    'NASDAQ:TSLA',
+    'CAPITALCOM:DXY',
+    'BINANCE:BTCUSDT',
+    'BINANCE:ETHUSDT',
+    'BINANCE:SOLUSDT',
+    'FX:EURUSD',
+    'FX:GBPUSD',
+    'NSE:NIFTY',
+    'NSE:BANKNIFTY',
+    'NSE:RELIANCE',
+    'NSE:TCS',
+    'NSE:INFY',
+    'NSE:HDFCBANK',
 ];
 
 export default function ProfessionalChart() {
     const containerRef = useRef(null);
+    const containerIdRef = useRef(`tradingview_widget_${Math.random().toString(36).substring(2, 9)}`);
     const [contextMenu, setContextMenu] = useState(null);
     const [showSettings, setShowSettings] = useState(false);
 
     // Customizable Candle & Drawing Settings
-    const [upColor, setUpColor] = useState('#089981');    // Bullish Green
-    const [downColor, setDownColor] = useState('#f23645');  // Bearish Red
-    const [fibColor, setFibColor] = useState('#00b7ff');    // Fib Retracement color
+    const [upColor, setUpColor] = useState('#089981');
+    const [downColor, setDownColor] = useState('#f23645');
+    const [fibColor, setFibColor] = useState('#00b7ff');
     const [fibExtend, setFibExtend] = useState(true);
 
-    const loadChart = () => {
+    useEffect(() => {
         if (!containerRef.current) return;
         containerRef.current.innerHTML = '';
 
@@ -52,7 +52,7 @@ export default function ProfessionalChart() {
                     locale: 'en',
                     toolbar_bg: '#131722',
                     enable_publishing: false,
-                    hide_side_toolbar: false, // Left drawing tools (Trendlines, Fibs, Position tools)
+                    hide_side_toolbar: false,
                     allow_symbol_change: true,
                     watchlist: FULL_REALTIME_WATCHLIST,
                     details: true,
@@ -61,7 +61,7 @@ export default function ProfessionalChart() {
                     show_popup_button: true,
                     popup_width: '1000',
                     popup_height: '650',
-                    container_id: 'tradingview_widget_container',
+                    container_id: containerIdRef.current,
                     backgroundColor: '#0a0f1d',
                     gridColor: 'rgba(56, 189, 248, 0.15)',
                     disabled_features: [],
@@ -72,7 +72,6 @@ export default function ProfessionalChart() {
                         'items_favoriting'
                     ],
                     overrides: {
-                        // Candle Colors
                         "mainSeriesProperties.candleStyle.upColor": upColor,
                         "mainSeriesProperties.candleStyle.downColor": downColor,
                         "mainSeriesProperties.candleStyle.drawWick": true,
@@ -82,12 +81,8 @@ export default function ProfessionalChart() {
                         "mainSeriesProperties.candleStyle.borderDownColor": downColor,
                         "mainSeriesProperties.candleStyle.wickUpColor": upColor,
                         "mainSeriesProperties.candleStyle.wickDownColor": downColor,
-                        
-                        // Fib Retracement Defaults
                         "linetoolfibretracement.linecolor": fibColor,
                         "linetoolfibretracement.extendLines": fibExtend,
-
-                        // Grid & Background
                         "paneProperties.vertGridProperties.color": "rgba(56, 189, 248, 0.15)",
                         "paneProperties.horzGridProperties.color": "rgba(56, 189, 248, 0.15)",
                     }
@@ -96,13 +91,8 @@ export default function ProfessionalChart() {
         };
 
         containerRef.current.appendChild(script);
-    };
-
-    useEffect(() => {
-        loadChart();
     }, [upColor, downColor, fibColor, fibExtend]);
 
-    // Handle Right-Click Context Menu on Chart
     const handleContextMenu = (e) => {
         e.preventDefault();
         setContextMenu({ x: e.clientX, y: e.clientY });
@@ -112,7 +102,8 @@ export default function ProfessionalChart() {
         <div 
             onContextMenu={handleContextMenu}
             onClick={() => setContextMenu(null)}
-            className="flex-1 w-full h-full bg-[#0a0f1d] relative overflow-hidden"
+            className="w-full h-full bg-[#0a0f1d] relative overflow-hidden"
+            style={{ minHeight: '100vh', width: '100vw' }}
         >
             {/* Right-Click Context Menu */}
             {contextMenu && (
@@ -136,7 +127,7 @@ export default function ProfessionalChart() {
                 </div>
             )}
 
-            {/* Customization Settings Modal (Triggered by Right Click) */}
+            {/* Customization Settings Modal */}
             {showSettings && (
                 <div className="absolute top-12 right-20 z-50 w-72 rounded-2xl bg-[#080d1a]/95 border border-cyan-500/30 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.9)] backdrop-blur-2xl text-slate-100 font-sans text-xs flex flex-col gap-4 select-none">
                     <div className="flex items-center justify-between pb-2 border-b border-cyan-500/20">
@@ -149,7 +140,6 @@ export default function ProfessionalChart() {
                         </button>
                     </div>
 
-                    {/* Candle Colors */}
                     <div className="flex flex-col gap-2">
                         <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Candle Colors</span>
                         <div className="flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-white/5">
@@ -172,7 +162,6 @@ export default function ProfessionalChart() {
                         </div>
                     </div>
 
-                    {/* Fibonacci Settings */}
                     <div className="flex flex-col gap-2 pt-2 border-t border-cyan-500/20">
                         <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">Fibonacci Retracement</span>
                         <div className="flex items-center justify-between bg-slate-900/60 p-2 rounded-xl border border-white/5">
@@ -216,7 +205,7 @@ export default function ProfessionalChart() {
                 }}
             />
 
-            <div id="tradingview_widget_container" ref={containerRef} className="w-full h-full relative z-10" />
+            <div id={containerIdRef.current} ref={containerRef} className="w-full h-full relative z-10" />
         </div>
     );
 }
