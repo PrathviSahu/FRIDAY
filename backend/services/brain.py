@@ -258,7 +258,9 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
     if authorized:
         # 0.0 TIME & HISTORY SHORTCUTS (English & Hinglish)
         if re.search(r'\b(?:weather|mausam|temperature|tapman)\b', lower_text):
-            w = get_weather()
+            city_match = re.search(r'\b(?:in|of|at|for)\s+([a-zA-Z\s]+)', lower_text)
+            city_query = city_match.group(1).strip() if city_match else None
+            w = get_weather(city_query)
             reply_msg = f"Prem, it's currently {w['temperature']}°C and {w['condition'].lower()} in {w['city']}. Feels like {w['feels_like']}°C."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "none"}

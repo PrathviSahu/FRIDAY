@@ -1,15 +1,11 @@
 """
 FRIDAY Weather Service
 Fetches live weather data using Open-Meteo (no API key required).
-Defaults to user's IP-based location or fallback coordinates.
+Supports IP-based auto location AND specific city search.
 """
 import urllib.request
+import urllib.parse
 import json
-
-# Fallback: Bhopal/Indore area (23.25, 77.41) or Delhi (28.61, 77.20)
-DEFAULT_LAT = 23.2599
-DEFAULT_LON = 77.4126
-DEFAULT_CITY = "Bhopal"
 
 
 def _get_ip_location() -> tuple[float, float, str]:
@@ -23,20 +19,48 @@ def _get_ip_location() -> tuple[float, float, str]:
             data = json.loads(resp.read().decode())
             if data.get("status") == "success":
                 return (
-                    float(data.get("lat", DEFAULT_LAT)),
-                    float(data.get("lon", DEFAULT_LON)),
-                    str(data.get("city", DEFAULT_CITY))
+                    float(data.get("lat")),
+                    float(data.get("lon")),
+                    str(data.get("city", "Nashik"))
                 )
     except Exception as e:
         print(f"[Weather] IP location lookup failed: {e}")
-    return DEFAULT_LAT, DEFAULT_LON, DEFAULT_CITY
+    return 20.0024, 73.7945, "Nashik"
 
 
-def get_weather(city_name: str | None = None) -> dict:
+def _geocode_city(city_name: str) -> tuple[float, float, str] | None:
+    """Geocode a city name to (lat, lon, official_name) via Open-Meteo Geocoding API."""
+    try:
+        query = urllib.parse.quote(city_name.strip())
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={query}&count=1&language=en&format=json"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+            results = data.get("results")
+            if results and len(results) > 0:
+                first = results[0]
+                return (
+                    float(first["latitude"]),
+                    float(first["longitude"]),
+                    str(first.get("name", city_name))
+                )
+    except Exception as e:
+        print(f"[Weather] Geocoding failed for '{city_name}': {e}")
+    return None
+
+
+def get_weather(city_query: str | None = None) -> dict:
     """Fetch live weather data from Open-Meteo API."""
-    lat, lon, city = _get_ip_location()
+    lat, lon, city = None, None, None
 
-    # Weather WMO code mapping
+    if city_query and city_query.strip():
+        geo = _geocode_city(city_query)
+        if geo:
+            lat, lon, city = geo
+
+    if lat is None:
+        lat, lon, city = _get_ip_location()
+
     WEATHER_CODES = {
         0: ("Clear Sky", "☀️"),
         1: ("Mainly Clear", "🌤️"),
@@ -80,14 +104,14 @@ def get_weather(city_name: str | None = None) -> dict:
     except Exception as e:
         print(f"[Weather] Error fetching weather: {e}")
         return {
-            "city": city,
-            "temperature": 27,
-            "feels_like": 28,
-            "humidity": 55,
-            "wind_speed": 12,
+            "city": city or "Nashik",
+            "temperature": 23,
+            "feels_like": 24,
+            "humidity": 90,
+            "wind_speed": 15,
             "condition": "Partly Cloudy",
             "icon": "⛅",
-            "temp_max": 30,
-            "temp_min": 22,
+            "temp_max": 26,
+            "temp_min": 21,
             "is_day": True,
         }

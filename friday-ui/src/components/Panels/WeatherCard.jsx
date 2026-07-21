@@ -7,15 +7,15 @@ const API = 'http://localhost:8000/api/weather';
 export default function WeatherCard() {
     const [isVisible, setIsVisible] = useState(true);
     const [weather, setWeather] = useState({
-        city: 'Bhopal',
-        temperature: 26,
-        feels_like: 27,
-        humidity: 60,
-        wind_speed: 10,
-        condition: 'Clear Sky',
-        icon: '☀️',
-        temp_max: 29,
-        temp_min: 21,
+        city: 'Locating…',
+        temperature: '--',
+        feels_like: '--',
+        humidity: '--',
+        wind_speed: '--',
+        condition: 'Fetching weather…',
+        icon: '🌤️',
+        temp_max: '--',
+        temp_min: '--',
     });
 
     const fetchWeather = async () => {
