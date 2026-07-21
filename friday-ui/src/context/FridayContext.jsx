@@ -4,7 +4,7 @@ const FridayContext = createContext();
 
 export function FridayProvider({ children }) {
   const [state, setState] = useState('idle');
-  const [micEnabled, setMicEnabled] = useState(false);
+  const [micEnabled, setMicEnabled] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
   return (
     <FridayContext.Provider value={{ state, setState, micEnabled, setMicEnabled, showDebug, setShowDebug }}>
