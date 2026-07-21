@@ -5,6 +5,12 @@ export default function DebugKeys() {
     const { setState, setMicEnabled, setShowDebug } = useFriday();
     useEffect(() => {
         const handler = (e) => {
+            // Ignore key shortcuts when typing in inputs or editable elements
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
+                return;
+            }
+
             // Toggle debug panel with F9
             if (e.code === 'F9' || e.key === 'F9') {
                 setShowDebug((current) => !current);
