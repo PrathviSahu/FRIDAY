@@ -23,7 +23,6 @@ const FULL_REALTIME_WATCHLIST = [
 
 export default function ProfessionalChart() {
     const containerRef = useRef(null);
-    const containerIdRef = useRef(`tradingview_widget_${Math.random().toString(36).substring(2, 9)}`);
     const [contextMenu, setContextMenu] = useState(null);
     const [showSettings, setShowSettings] = useState(false);
 
@@ -33,64 +32,78 @@ export default function ProfessionalChart() {
     const [fibColor, setFibColor] = useState('#00b7ff');
     const [fibExtend, setFibExtend] = useState(true);
 
-    useEffect(() => {
-        if (!containerRef.current) return;
+    const initWidget = () => {
+        if (!containerRef.current || !window.TradingView) return;
         containerRef.current.innerHTML = '';
 
+        new window.TradingView.widget({
+            autosize: true,
+            symbol: 'OANDA:XAUUSD',
+            interval: '5',
+            timezone: 'Asia/Kolkata',
+            theme: 'dark',
+            style: '1',
+            locale: 'en',
+            toolbar_bg: '#131722',
+            enable_publishing: false,
+            hide_side_toolbar: false,
+            allow_symbol_change: true,
+            watchlist: FULL_REALTIME_WATCHLIST,
+            details: true,
+            hotlist: true,
+            calendar: true,
+            show_popup_button: true,
+            popup_width: '1000',
+            popup_height: '650',
+            container_id: 'tradingview_widget_element',
+            backgroundColor: '#0a0f1d',
+            gridColor: 'rgba(56, 189, 248, 0.15)',
+            disabled_features: [],
+            enabled_features: [
+                'study_templates',
+                'use_localstorage_for_settings',
+                'side_toolbar_in_fullscreen_mode',
+                'items_favoriting'
+            ],
+            overrides: {
+                "mainSeriesProperties.candleStyle.upColor": upColor,
+                "mainSeriesProperties.candleStyle.downColor": downColor,
+                "mainSeriesProperties.candleStyle.drawWick": true,
+                "mainSeriesProperties.candleStyle.drawBorder": true,
+                "mainSeriesProperties.candleStyle.borderColor": "#378658",
+                "mainSeriesProperties.candleStyle.borderUpColor": upColor,
+                "mainSeriesProperties.candleStyle.borderDownColor": downColor,
+                "mainSeriesProperties.candleStyle.wickUpColor": upColor,
+                "mainSeriesProperties.candleStyle.wickDownColor": downColor,
+                "linetoolfibretracement.linecolor": fibColor,
+                "linetoolfibretracement.extendLines": fibExtend,
+                "paneProperties.vertGridProperties.color": "rgba(56, 189, 248, 0.15)",
+                "paneProperties.horzGridProperties.color": "rgba(56, 189, 248, 0.15)",
+            }
+        });
+    };
+
+    useEffect(() => {
+        // If script is already in document
+        if (window.TradingView) {
+            initWidget();
+            return;
+        }
+
+        const existingScript = document.getElementById('tradingview-tv-script');
+        if (existingScript) {
+            existingScript.addEventListener('load', initWidget);
+            return;
+        }
+
         const script = document.createElement('script');
+        script.id = 'tradingview-tv-script';
         script.src = 'https://s3.tradingview.com/tv.js';
         script.async = true;
         script.onload = () => {
-            if (window.TradingView && containerRef.current) {
-                new window.TradingView.widget({
-                    autosize: true,
-                    symbol: 'OANDA:XAUUSD',
-                    interval: '5',
-                    timezone: 'Asia/Kolkata',
-                    theme: 'dark',
-                    style: '1',
-                    locale: 'en',
-                    toolbar_bg: '#131722',
-                    enable_publishing: false,
-                    hide_side_toolbar: false,
-                    allow_symbol_change: true,
-                    watchlist: FULL_REALTIME_WATCHLIST,
-                    details: true,
-                    hotlist: true,
-                    calendar: true,
-                    show_popup_button: true,
-                    popup_width: '1000',
-                    popup_height: '650',
-                    container_id: containerIdRef.current,
-                    backgroundColor: '#0a0f1d',
-                    gridColor: 'rgba(56, 189, 248, 0.15)',
-                    disabled_features: [],
-                    enabled_features: [
-                        'study_templates',
-                        'use_localstorage_for_settings',
-                        'side_toolbar_in_fullscreen_mode',
-                        'items_favoriting'
-                    ],
-                    overrides: {
-                        "mainSeriesProperties.candleStyle.upColor": upColor,
-                        "mainSeriesProperties.candleStyle.downColor": downColor,
-                        "mainSeriesProperties.candleStyle.drawWick": true,
-                        "mainSeriesProperties.candleStyle.drawBorder": true,
-                        "mainSeriesProperties.candleStyle.borderColor": "#378658",
-                        "mainSeriesProperties.candleStyle.borderUpColor": upColor,
-                        "mainSeriesProperties.candleStyle.borderDownColor": downColor,
-                        "mainSeriesProperties.candleStyle.wickUpColor": upColor,
-                        "mainSeriesProperties.candleStyle.wickDownColor": downColor,
-                        "linetoolfibretracement.linecolor": fibColor,
-                        "linetoolfibretracement.extendLines": fibExtend,
-                        "paneProperties.vertGridProperties.color": "rgba(56, 189, 248, 0.15)",
-                        "paneProperties.horzGridProperties.color": "rgba(56, 189, 248, 0.15)",
-                    }
-                });
-            }
+            initWidget();
         };
-
-        containerRef.current.appendChild(script);
+        document.head.appendChild(script);
     }, [upColor, downColor, fibColor, fibExtend]);
 
     const handleContextMenu = (e) => {
@@ -103,7 +116,7 @@ export default function ProfessionalChart() {
             onContextMenu={handleContextMenu}
             onClick={() => setContextMenu(null)}
             className="w-full h-full bg-[#0a0f1d] relative overflow-hidden"
-            style={{ minHeight: '100vh', width: '100vw' }}
+            style={{ width: '100%', height: '100%', minHeight: '500px' }}
         >
             {/* Right-Click Context Menu */}
             {contextMenu && (
@@ -205,7 +218,7 @@ export default function ProfessionalChart() {
                 }}
             />
 
-            <div id={containerIdRef.current} ref={containerRef} className="w-full h-full relative z-10" />
+            <div id="tradingview_widget_element" ref={containerRef} className="w-full h-full relative z-10" />
         </div>
     );
 }
