@@ -12,15 +12,14 @@ export function matchVoiceCommand(transcript) {
   console.log('[Voice] Transcript:', transcript, '-> normalized:', text);
   if (!text) return null;
 
-  // LOCK SYSTEM PATTERNS
-  if (/\b(?:lock|secure|lock yourself|lock down|lock system)\b/.test(text)) { return 'lock'; }
-
-  // COMMAND PATTERNS
-  if (/\btrading\b/.test(text)) { return 'trading'; }
-  if (/\bengineering\b/.test(text)) { return 'engineering'; }
-  if (/\b(?:open|launch|start)\b.*\b(?:vscode|visual studio code|vs code|code)\b/.test(text)) { return 'vscode'; }
+  // STRICT SHORTCUT COMMAND PATTERNS
+  // Require explicit action verbs (e.g. "open trading", "lock yourself") so general questions are passed to AI brain
+  if (/\b(?:lock yourself|lock down|lock system|secure system)\b/.test(text)) { return 'lock'; }
+  if (/\b(?:open|show|launch|start)\b.*\btrading\b/.test(text)) { return 'trading'; }
+  if (/\b(?:open|show|launch|start)\b.*\bengineering\b/.test(text)) { return 'engineering'; }
+  if (/\b(?:open|launch|start)\b.*\b(?:vscode|visual studio code|vs code)\b/.test(text)) { return 'vscode'; }
   if (/\b(?:open|launch|start)\b.*\b(?:browser|chrome|edge|safari)\b/.test(text)) { return 'browser'; }
-  if (/\b(?:open|show|launch)\b.*\b(?:dashboard|status|panel)\b/.test(text)) { return 'dashboard'; }
+  if (/\b(?:open|show|launch)\b.*\b(?:dashboard|status panel)\b/.test(text)) { return 'dashboard'; }
 
   return null;
 }
