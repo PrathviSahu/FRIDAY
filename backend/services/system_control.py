@@ -163,11 +163,10 @@ def play_spotify_uri(uri: str) -> bool:
         return False
 
 
-
 def get_spotify_current_track() -> dict:
-    """Fetch details of currently active Spotify track (title, artist, album, state) via AppleScript."""
+    """Fetch details of currently active Spotify track (title, artist, album, state, artwork_url) via AppleScript."""
     if not IS_MAC or not is_spotify_running():
-        return {"playing": False, "title": "", "artist": "", "album": "", "state": "stopped"}
+        return {"playing": False, "title": "", "artist": "", "album": "", "state": "stopped", "artwork_url": ""}
     try:
         script = '''
         tell application "Spotify"
@@ -176,21 +175,23 @@ def get_spotify_current_track() -> dict:
                 set artistName to artist of current track
                 set albumName to album of current track
                 set trackState to (player state as string)
-                return trackName & "|||" & artistName & "|||" & albumName & "|||" & trackState
+                set artworkURL to artwork url of current track
+                return trackName & "|||" & artistName & "|||" & albumName & "|||" & trackState & "|||" & artworkURL
             on error
                 return "STOPPED"
             end try
         end tell
         '''
-        res = subprocess.check_output(["osascript", "-e", script], timeout=2).decode("utf-8").strip()
+        res = subprocess.check_output(["osascript", "-e", script], timeout=3).decode("utf-8").strip()
         if not res or res == "STOPPED" or "|||" not in res:
-            return {"playing": False, "title": "", "artist": "", "album": "", "state": "stopped"}
+            return {"playing": False, "title": "", "artist": "", "album": "", "state": "stopped", "artwork_url": ""}
 
         parts = res.split("|||")
         title = parts[0].strip()
         artist = parts[1].strip() if len(parts) > 1 else ""
         album = parts[2].strip() if len(parts) > 2 else ""
         state = parts[3].strip().lower() if len(parts) > 3 else "stopped"
+        artwork_url = parts[4].strip() if len(parts) > 4 else ""
         is_playing = state == "playing"
 
         return {
@@ -198,11 +199,12 @@ def get_spotify_current_track() -> dict:
             "title": title,
             "artist": artist,
             "album": album,
-            "state": state
+            "state": state,
+            "artwork_url": artwork_url
         }
     except Exception as err:
         print(f"[Automation] Error fetching current track: {err}")
-        return {"playing": False, "title": "", "artist": "", "album": "", "state": "stopped"}
+        return {"playing": False, "title": "", "artist": "", "album": "", "state": "stopped", "artwork_url": ""}
 
 
 def add_current_track_to_playlist(target_playlist: str = "hindi") -> bool:

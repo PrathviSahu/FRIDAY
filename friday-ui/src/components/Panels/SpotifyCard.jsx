@@ -37,7 +37,7 @@ function IconBtn({ icon: Icon, size = 16, color = '#b3b3b3', activeColor = '#fff
 
 export default function SpotifyCard() {
     const [isVisible, setIsVisible] = useState(true);
-    const [spotifyTrack, setSpotifyTrack] = useState({ playing: false, title: '', artist: '' });
+    const [spotifyTrack, setSpotifyTrack] = useState({ playing: false, title: '', artist: '', artwork_url: '' });
     const [volume, setVolume] = useState(65);
     const [muted, setMuted] = useState(false);
     const [liked, setLiked] = useState(false);
@@ -204,14 +204,25 @@ export default function SpotifyCard() {
                     {/* Album art */}
                     <div style={{
                         width: 56, height: 56, borderRadius: 6, flexShrink: 0,
-                        background: spotifyTrack.playing
-                            ? 'linear-gradient(135deg, #1a472a 0%, #1DB954 50%, #145a32 100%)'
-                            : 'linear-gradient(135deg, #282828 0%, #1a1a1a 100%)',
+                        background: 'linear-gradient(135deg, #282828 0%, #1a1a1a 100%)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: spotifyTrack.playing ? '0 4px 20px rgba(29,185,84,0.4)' : '0 2px 8px rgba(0,0,0,0.5)',
-                        transition: 'all 0.5s ease'
+                        boxShadow: spotifyTrack.playing ? '0 4px 20px rgba(29,185,84,0.35)' : '0 2px 8px rgba(0,0,0,0.5)',
+                        transition: 'box-shadow 0.5s ease',
+                        overflow: 'hidden', position: 'relative'
                     }}>
-                        <SpotifyIcon size={24} />
+                        {spotifyTrack.artwork_url ? (
+                            <motion.img
+                                key={spotifyTrack.artwork_url}
+                                src={spotifyTrack.artwork_url}
+                                alt="Album art"
+                                initial={{ opacity: 0, scale: 1.05 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.4 }}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }}
+                            />
+                        ) : (
+                            <SpotifyIcon size={24} />
+                        )}
                     </div>
 
                     {/* Track text */}
