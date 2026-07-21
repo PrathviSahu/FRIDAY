@@ -87,6 +87,7 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
         rec.onerror  = null;
         rec.onresult = null;
         try { rec.abort(); } catch (_) {}
+        rec = null;
       }
 
       rec = new SpeechRec();
@@ -156,6 +157,7 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
           rec.onerror  = null;
           rec.onresult = null;
           try { rec.abort(); } catch (_) {}
+          rec = null;
           activeRef.current = false;
         }
 
@@ -207,14 +209,12 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
           speakingRef.current = true;
           try { await withTimeout(speak(lockedReply), 10000); } catch (_) {}
           speakingRef.current = false;
-          if (!cancelled && enabledRef.current) start();
           return;
         }
 
         const localCommand = matchVoiceCommand(cmd);
         if (localCommand) {
           onCommandRef.current?.(localCommand);
-          if (!cancelled && enabledRef.current) start();
           return;
         }
 
@@ -233,14 +233,16 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
 
         // Brief buffer after speech finishes, restart mic
         await new Promise(r => setTimeout(r, 400));
-        if (!cancelled && enabledRef.current) start();
 
       } catch (err) {
         console.warn('[Voice] Command error:', err);
         speakingRef.current = false;
-        if (!cancelled && enabledRef.current) scheduleRestart(500);
       } finally {
         processingRef.current = false;
+        // 🚀 CRITICAL PERMANENT FIX: Always guarantee mic restarts in finally block
+        if (!cancelled && enabledRef.current && !activeRef.current) {
+          start();
+        }
       }
     };
 
