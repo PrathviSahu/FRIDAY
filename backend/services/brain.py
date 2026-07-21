@@ -51,12 +51,12 @@ _BOSS_BASE_PROMPT = (
     "- play_hindi_playlist: play Boss's Hindi playlist 'Only for me' "
     "- play_english_playlist: play Boss's English playlist 'Losing my self' "
     "- play_specific: search & play any specific song on Spotify (set 'target_app' to song name e.g. 'Kesariya', 'Self Aware by Temple City', 'Pagal Kare'). "
-    "IMPORTANT: If the user says a song name or asks to play something (e.g. 'pagal kare', 'self aware by temple city'), ALWAYS set action to 'play_specific' and target_app to the song name! "
-    "- open_spotify / close_spotify (quits Spotify app) "
-    "- play_music / pause_music / toggle_music "
+    "- pause_music: pause Spotify music whenever the user mentions 'pause', 'stop', 'hold on', 'hush' "
+    "- play_music / toggle_music "
     "- next_track / previous_track "
     "- volume_up / volume_down / mute "
     "- repeat / shuffle "
+    "- open_spotify / close_spotify "
     "- open_brave / open_youtube / open_app / close_app / search_web "
     "- dashboard / trading / engineering / vscode / browser / lock / allow_guest / revoke_guest / remember "
     "ALWAYS respond with ONLY a single valid JSON object in the form: "
@@ -147,24 +147,30 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
         log_conversation(role="assistant", message=reply_msg)
         return {"reply": reply_msg, "action": "revoke_guest"}
 
-    # Direct fast-path shortcuts for application & media controls
-    if "close spotify" in lower_text or "quit spotify" in lower_text:
-        execute_system_command("close_spotify")
-        reply_msg = "Closing Spotify, Boss."
+    # DIRECT FAST-PATH MEDIA SHORTCUTS (Checked BEFORE any play search parsing)
+    if "pause" in lower_text or "stop music" in lower_text or "hold on" in lower_text or lower_text == "stop":
+        execute_system_command("pause_music")
+        reply_msg = "Pausing Spotify music, Boss."
         log_conversation(role="assistant", message=reply_msg)
-        return {"reply": reply_msg, "action": "close_spotify"}
+        return {"reply": reply_msg, "action": "pause_music"}
 
-    if "play hindi" in lower_text or "hindi playlist" in lower_text:
-        execute_system_command("play_hindi_playlist")
-        reply_msg = "Playing your Hindi playlist 'Only for me', Boss."
+    if "resume" in lower_text or "unpause" in lower_text:
+        execute_system_command("play_music")
+        reply_msg = "Resuming Spotify music, Boss."
         log_conversation(role="assistant", message=reply_msg)
-        return {"reply": reply_msg, "action": "play_hindi_playlist"}
+        return {"reply": reply_msg, "action": "play_music"}
 
-    if "play english" in lower_text or "english playlist" in lower_text:
-        execute_system_command("play_english_playlist")
-        reply_msg = "Playing your English playlist 'Losing my self', Boss."
+    if "next" in lower_text and ("track" in lower_text or "song" in lower_text or "skip" in lower_text or lower_text == "next"):
+        execute_system_command("next_track")
+        reply_msg = "Skipping to next track, Boss."
         log_conversation(role="assistant", message=reply_msg)
-        return {"reply": reply_msg, "action": "play_english_playlist"}
+        return {"reply": reply_msg, "action": "next_track"}
+
+    if "previous" in lower_text and ("track" in lower_text or "song" in lower_text or lower_text == "previous"):
+        execute_system_command("previous_track")
+        reply_msg = "Playing previous track, Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "previous_track"}
 
     if "volume up" in lower_text or "increase volume" in lower_text or "louder" in lower_text:
         execute_system_command("volume_up")
@@ -190,11 +196,30 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
         log_conversation(role="assistant", message=reply_msg)
         return {"reply": reply_msg, "action": "shuffle"}
 
-    # Compound queries: "open spotify and play [song]" or "play [song]"
+    if "close spotify" in lower_text or "quit spotify" in lower_text:
+        execute_system_command("close_spotify")
+        reply_msg = "Closing Spotify, Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "close_spotify"}
+
+    if "play hindi" in lower_text or "hindi playlist" in lower_text:
+        execute_system_command("play_hindi_playlist")
+        reply_msg = "Playing your Hindi playlist 'Only for me', Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "play_hindi_playlist"}
+
+    if "play english" in lower_text or "english playlist" in lower_text:
+        execute_system_command("play_english_playlist")
+        reply_msg = "Playing your English playlist 'Losing my self', Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "play_english_playlist"}
+
+    # PLAY SONG SEARCH (Only checked if "pause" is NOT present)
     if "play" in lower_text:
         cleaned_song = (
             lower_text.replace("open spotify and play", "")
             .replace("open spotify and", "")
+            .replace("i said", "")
             .replace("play song", "")
             .replace("play track", "")
             .replace("search song", "")
@@ -308,7 +333,7 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
                 print(f"[Brain] Gemini {model_name} failed: {err}")
 
     # Default fallback for short single-phrase song titles
-    if len(text.split()) <= 3 and not text.lower().startswith("what") and not text.lower().startswith("how"):
+    if len(text.split()) <= 3 and not text.lower().startswith("what") and not text.lower().startswith("how") and "pause" not in lower_text:
         execute_system_command("play_specific", text)
         reply_msg = f"Opening Spotify and playing '{text}', Boss."
         log_conversation(role="assistant", message=reply_msg)
