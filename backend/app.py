@@ -17,6 +17,7 @@ from services.tts import generate_speech
 from services.voice_auth import is_guest_permitted, set_guest_permission
 from services.memory import get_all_memories, save_fact
 from services.system_control import get_spotify_current_track
+from services.todos import get_todos, add_todo, toggle_todo, delete_todo, clear_done, update_todo_text
 
 # Ensure temp_audio directory exists
 AUDIO_DIR = Path('temp_audio')
@@ -53,6 +54,15 @@ class PermissionRequest(BaseModel):
 class SaveMemoryRequest(BaseModel):
     key: str
     value: str
+
+
+class TodoCreateRequest(BaseModel):
+    text: str
+    priority: str = "normal"  # "high" | "normal" | "low"
+
+
+class TodoTextRequest(BaseModel):
+    text: str
 
 
 @app.get("/")
@@ -102,6 +112,55 @@ def set_permission_endpoint(req: PermissionRequest):
 def get_spotify_track_endpoint():
     """Retrieve details of currently playing track on Spotify"""
     return get_spotify_current_track()
+
+
+# ── Todo endpoints ──────────────────────────────────────────
+
+@app.get("/api/todos")
+def get_todos_endpoint():
+    """Get all todos"""
+    return {"todos": get_todos()}
+
+
+@app.post("/api/todos")
+def create_todo_endpoint(req: TodoCreateRequest):
+    """Add a new todo"""
+    item = add_todo(req.text, req.priority)
+    return {"status": "ok", "todo": item}
+
+
+@app.patch("/api/todos/{todo_id}/toggle")
+def toggle_todo_endpoint(todo_id: str):
+    """Toggle a todo's done state"""
+    item = toggle_todo(todo_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return {"status": "ok", "todo": item}
+
+
+@app.patch("/api/todos/{todo_id}/text")
+def update_todo_endpoint(todo_id: str, req: TodoTextRequest):
+    """Edit todo text"""
+    item = update_todo_text(todo_id, req.text)
+    if not item:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return {"status": "ok", "todo": item}
+
+
+@app.delete("/api/todos/done")
+def clear_done_endpoint():
+    """Remove all completed todos"""
+    count = clear_done()
+    return {"status": "ok", "removed": count}
+
+
+@app.delete("/api/todos/{todo_id}")
+def delete_todo_endpoint(todo_id: str):
+    """Delete a todo by id"""
+    ok = delete_todo(todo_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return {"status": "ok"}
 
 
 @app.post("/api/tts")
