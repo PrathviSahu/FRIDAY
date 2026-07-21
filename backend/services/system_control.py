@@ -153,7 +153,6 @@ def play_spotify_uri(uri: str) -> bool:
     try:
         script = f'''
         tell application "Spotify"
-            activate
             play track "{uri}"
         end tell
         '''
