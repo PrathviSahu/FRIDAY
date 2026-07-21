@@ -137,35 +137,26 @@ export function useSpeech({ locked, isLocked, workspace = 'unlocked', enabled = 
 
         console.log('[Voice] Raw speech recognized:', rawTranscript);
 
-        // Check if user spoke a wake word ("Friday", "Hey Friday", "Suno Friday", "फ्राइडे")
-        const isWakeWordPresent = /^(?:if|he|hey|hi|hello|ok|okay|sun|suno)\s+(?:friday|फ्राइडे|fraide|frida)\b|\b(?:friday|फ्राइडे|fraide|frida)\b/i.test(rawTranscript.trim());
+        // Check if user spoke an explicit wake word ("Friday", "Hey Friday", "Suno Friday", "FRIDAY")
+        const isWakeWordPresent = /^(?:if|he|hey|hi|hello|ok|okay|sun|suno)\s+(?:friday|fraide|frida)\b|\b(?:friday|fraide|frida)\b/i.test(rawTranscript.trim());
 
-        // ⚡ INTERRUPT FEATURE: If FRIDAY is currently speaking and user calls "Friday", stop TTS immediately!
+        // ⚡ INSTANT VOICE INTERRUPT: If FRIDAY is currently speaking and user says "Friday", stop TTS immediately!
         if (speakingRef.current) {
           if (isWakeWordPresent) {
-            console.log('[Voice Interrupt] Wake-word detected while FRIDAY is speaking! Stopping TTS playback...');
+            console.log('[Voice Interrupt] Wake-word detected while FRIDAY is speaking! Stopping TTS playback immediately...');
             stopSpeaking();
             speakingRef.current = false;
           } else {
-            // Drop self-echo or background speech while FRIDAY is talking
-            console.log('[Voice] Suppressing self-echo while FRIDAY is speaking.');
+            // Suppress ambient speech or self-echo while FRIDAY is speaking
+            console.log('[Voice] Suppressing ambient audio while FRIDAY is speaking.');
             return;
           }
         }
 
-        // ⚡ TRADING MODE SLEEP RULE: When in trading mode, FRIDAY MUST hear an explicit wake word ("Friday")!
-        // Ignore all background speech or casual chatter until "Friday" is spoken.
-        if (workspaceRef.current === 'trading' && !isWakeWordPresent) {
-          console.log('[Voice Trading Sleep] FRIDAY is sleeping in trading mode. Ignoring transcript (no wake-word):', rawTranscript);
-          if (rec) {
-            rec.onend    = null;
-            rec.onerror  = null;
-            rec.onresult = null;
-            try { rec.abort(); } catch (_) {}
-            rec = null;
-            activeRef.current = false;
-          }
-          start();
+        // ⚡ GLOBAL MANDATORY WAKE-WORD GATE: Ignore ALL background speech unless "Friday" wake word is spoken!
+        // Do NOT send query to Groq LLM if wake word is missing.
+        if (!isWakeWordPresent) {
+          console.log('[Voice Gate] No wake-word detected. Ignoring speech and keeping mic listening:', rawTranscript);
           return;
         }
 
