@@ -145,50 +145,63 @@ def control_spotify(command: str, query: str = "", volume_percent: int = -1) -> 
     """Control Spotify playback, volume %, playlists, and repeat mode via macOS AppleScript."""
     if not IS_MAC:
         return False
-    
     cmd = command.lower().strip()
     try:
-        open_app("Spotify")
+        if cmd == "set_volume":
+            if volume_percent >= 0:
+                vol_clamped = max(0, min(100, volume_percent))
+                script = f'''
+                tell application "Spotify"
+                    activate
+                    set sound volume to {vol_clamped}
+                end tell'''
+                subprocess.Popen(["osascript", "-e", script])
+            return True
 
+        if cmd in ("play_hindi_playlist", "play_english_playlist", "play_specific"):
+            # These use their own activate logic inside search_and_play_spotify
+            if volume_percent >= 0:
+                vol_clamped = max(0, min(100, volume_percent))
+                vol_script = f'tell application "Spotify" to set sound volume to {vol_clamped}'
+                subprocess.Popen(["osascript", "-e", vol_script])
+            if cmd == "play_hindi_playlist":
+                search_and_play_spotify("Only for me")
+            elif cmd == "play_english_playlist":
+                search_and_play_spotify("Losing my self")
+            else:
+                search_and_play_spotify(query)
+            return True
+
+        # Map command → AppleScript action string
+        action_map = {
+            "play":       "play",
+            "resume":     "play",
+            "pause":      "pause",
+            "stop":       "pause",
+            "play_pause": "playpause",
+            "toggle":     "playpause",
+            "next":       "next track",
+            "previous":   "previous track",
+            "volume_up":  f"set sound volume to (sound volume + 20)",
+            "volume_down":f"set sound volume to (sound volume - 20)",
+            "mute":       "set sound volume to 0",
+            "repeat":     "set repeating to true",
+            "shuffle":    "set shuffling to true",
+        }
+
+        spotify_action = action_map.get(cmd, "play")
+
+        # Build single atomic AppleScript — activate + optional volume + command
+        vol_line = ""
         if volume_percent >= 0:
             vol_clamped = max(0, min(100, volume_percent))
-            script = f'tell application "Spotify" to set sound volume to {vol_clamped}'
-            subprocess.Popen(["osascript", "-e", script])
+            vol_line = f"\n    set sound volume to {vol_clamped}"
 
-        if cmd == "set_volume":
-            return True
-
-        if cmd == "play":
-            script = 'tell application "Spotify" to play'
-        elif cmd == "pause" or cmd == "stop":
-            script = 'tell application "Spotify" to pause'
-        elif cmd == "play_pause" or cmd == "toggle":
-            script = 'tell application "Spotify" to playpause'
-        elif cmd == "next":
-            script = 'tell application "Spotify" to next track'
-        elif cmd == "previous":
-            script = 'tell application "Spotify" to previous track'
-        elif cmd == "volume_up":
-            script = 'tell application "Spotify" to set sound volume to (sound volume + 20)'
-        elif cmd == "volume_down":
-            script = 'tell application "Spotify" to set sound volume to (sound volume - 20)'
-        elif cmd == "mute":
-            script = 'tell application "Spotify" to set sound volume to 0'
-        elif cmd == "repeat":
-            script = 'tell application "Spotify" to set repeating to true'
-        elif cmd == "shuffle":
-            script = 'tell application "Spotify" to set shuffling to true'
-        elif cmd == "play_hindi_playlist":
-            search_and_play_spotify("Only for me")
-            return True
-        elif cmd == "play_english_playlist":
-            search_and_play_spotify("Losing my self")
-            return True
-        elif cmd == "play_specific":
-            search_and_play_spotify(query)
-            return True
-        else:
-            script = 'tell application "Spotify" to play'
+        script = f'''
+        tell application "Spotify"
+            activate{vol_line}
+            {spotify_action}
+        end tell'''
 
         subprocess.Popen(["osascript", "-e", script])
         return True
