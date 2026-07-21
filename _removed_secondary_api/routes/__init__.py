@@ -1,1 +1,0 @@
-"""FRIDAY API route package."""
