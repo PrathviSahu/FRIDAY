@@ -62,17 +62,21 @@ export default function SystemMonitorCard() {
 
     if (!isVisible) {
         return (
-            <motion.button
+            <motion.div
+                drag
+                dragConstraints={{ left: -1200, right: 200, top: -100, bottom: 800 }}
+                dragElastic={0.1}
+                whileDrag={{ scale: 1.05 }}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsVisible(true)}
-                className="fixed top-8 right-10 z-50 flex items-center gap-2 px-3.5 py-2 rounded-full cursor-pointer pointer-events-auto bg-[#090d16]/90 border border-cyan-500/30 text-cyan-400 shadow-[0_4px_20px_rgba(0,183,255,0.2)] text-[11px] font-mono"
+                className="fixed top-8 right-10 z-50 flex items-center gap-2 px-3.5 py-2 rounded-full cursor-grab active:cursor-grabbing pointer-events-auto select-none bg-[#090d16]/90 border border-cyan-500/30 text-cyan-400 shadow-[0_4px_20px_rgba(0,183,255,0.2)] text-[11px] font-mono"
             >
                 <Activity size={13} className="animate-pulse text-cyan-400" />
                 <span>CPU {stats.cpu_percent}%</span>
-            </motion.button>
+            </motion.div>
         );
     }
 
