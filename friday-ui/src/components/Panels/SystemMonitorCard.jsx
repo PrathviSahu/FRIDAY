@@ -80,13 +80,14 @@ export default function SystemMonitorCard() {
         <AnimatePresence>
             <motion.div
                 drag
-                dragConstraints={{ left: -600, right: 100, top: -100, bottom: 500 }}
-                dragElastic={0.08}
+                dragConstraints={{ left: -1200, right: 200, top: -100, bottom: 800 }}
+                dragElastic={0.1}
+                whileDrag={{ scale: 1.02, cursor: 'grabbing' }}
                 initial={{ opacity: 0, y: -20, scale: 0.94 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="fixed top-8 right-10 z-40 w-64 rounded-2xl pointer-events-auto select-none overflow-hidden bg-[#070b12]/92 border border-cyan-500/25 shadow-[0_16px_50px_rgba(0,0,0,0.8),0_0_20px_rgba(0,183,255,0.15)] backdrop-blur-xl"
+                className="fixed top-8 right-10 z-40 w-64 rounded-2xl pointer-events-auto select-none overflow-hidden bg-[#070b12]/92 border border-cyan-500/25 shadow-[0_16px_50px_rgba(0,0,0,0.8),0_0_20px_rgba(0,183,255,0.15)] backdrop-blur-xl cursor-grab active:cursor-grabbing"
             >
                 {/* Top glow indicator */}
                 <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-70" />
