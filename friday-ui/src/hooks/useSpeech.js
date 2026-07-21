@@ -1,183 +1,198 @@
 import { useEffect, useRef } from 'react';
 import { matchVoiceCommand } from './voiceCommands';
+import { speak } from '../services/ttsService';
+import { fetchChatText } from '../api/chatText';
 
 /**
- * Web Speech API hook.
- * Starts speech recognition once and restarts it only when the browser allows it.
+ * ALL words that act as wake-words. Any of these will trigger FRIDAY.
+ *
+ * IMPORTANT: Add the new wake words ("wake" and "wake up") to ensure they are recognized
+ * before the word "friday" (so "wake up" is matched first).
  */
-export function useSpeech({ onCommand, onTranscript, enabled = false }) {
-    const recognitionRef = useRef(null);
-    const activeRef = useRef(false);
-    const lastStartRef = useRef(0);
-    const restartTimerRef = useRef(null);
-    const isListeningRef = useRef(false);
-    const isStartingRef = useRef(false);
+const WAKE_WORDS = [
+  'wake',        // New! matches "wake" and "wake up" (if matching longer phrase first)
+  'wake up',     // Longer phrase matched first (automatically by algorithm)
+  'friday',
+  'hey',
+  'hi',
+  'hello',
+  'ok',
+  'okay',
+  'yo',
+  'um',
+  'uh',
+  'so',
+  'listen',
+  'please',
+  'well',
+  'actually',
+  'right',
+  'just',
+  'now'
+];
 
-    // Keep the latest callbacks in refs so the recognition lifecycle (below)
-    // does NOT have to be torn down/recreated every time the caller's
-    // onCommand/onTranscript identities change. Recreating SpeechRecognition
-    // mid-conversation is what was dropping the 2nd (and later) commands.
-    const onCommandRef = useRef(onCommand);
-    const onTranscriptRef = useRef(onTranscript);
-    onCommandRef.current = onCommand;
-    onTranscriptRef.current = onTranscript;
+/**
+ * Returns the command part after the FIRST wake-word found,
+ * or null if no wake-word is present.
+ *
+ * Matches longest phrases first (e.g., "wake up") to avoid partial matches.
+ * Handles "if Friday" correctly by trimming leading punctuation and whitespace.
+ */
+function extractCommand(transcript) {
+  if (!transcript) return null;
+  const t = transcript.trim().toLowerCase();
 
-    useEffect(() => {
-        const SpeechRecognition =
-            window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Sort by descending length to match longer phrases first
+  // e.g., "wake up" before "wake"
+  const sortedWords = WAKE_WORDS.slice().sort((a, b) => b.length - a.length);
 
-        if (!SpeechRecognition) {
-            console.warn('F.R.I.D.A.Y.: SpeechRecognition not supported in this browser.');
-            return;
+  // Try each wake word in order of length
+  for (const wakeWord of sortedWords) {
+    const index = t.indexOf(wakeWord);
+    if (index !== -1) {
+      // Slice after the complete wake word match
+      const after = t.substring(index + wakeWord.length);
+      // Trim leading punctuation and whitespace
+      return after.replace(/^[\s,.\-?]+/, '').trim();
+    }
+  }
+
+  return null;
+}
+
+/**
+ * The voice hook that captures audio, detects wake words, and dispatches commands.
+ * Includes error handling for malformed transcripts and permission issues.
+ */
+export function useSpeech({ onCommand, onConversation, enabled = false }) {
+  const recRef = useRef(null);
+  const activeRef = useRef(false);
+  const processingRef = useRef(false);
+  const lastFinalRef = useRef('');
+
+  // Keep callbacks fresh to avoid stale closures
+  const onCommandRef = useRef(onCommand);
+  const onConversationRef = useRef(onConversation);
+  onCommandRef.current = onCommand;
+  onConversationRef.current = onConversation;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      console.warn('[Voice] SpeechRecognition not available. Use Chrome/Edge.');
+      return;
+    }
+
+    let cancelled = false;
+    let rec = null;
+
+    const start = async () => {
+      if (cancelled) return;
+
+      // Request microphone permission first (must be done after user gesture)
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        console.warn('[Voice] Mic permission denied:', e);
+        return;
+      }
+
+      // Initialize speech recognition engine
+      rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onresult = (e) => {
+        const result = e.results[e.resultIndex];
+        if (!result || !result.isFinal) return;
+        const text = result[0].transcript.trim();
+        if (!text) return;
+
+        // Check for wake word at the beginning (or anywhere)
+        const cmd = extractCommand(text);
+        if (cmd) {
+          console.log('[Voice] Wake-word detected → command:', cmd);
+          handleCmd(cmd);
+        } else {
+          console.log('[Voice] No wake-word detected in:', text);
+        }
+      };
+
+      rec.onerror = (e) => {
+        console.warn('[Voice] Recognition error:', e.error || e);
+        // Attempt to restart if not explicitly cancelled
+        if (!cancelled && activeRef.current) {
+          setTimeout(start, 300);
+        }
+      };
+
+      rec.onend = () => {
+        console.log('[Voice] Recognition stopped (will restart if enabled)');
+        if (!cancelled && activeRef.current && enabled) {
+          setTimeout(start, 100);
+        }
+      };
+
+      // Start the recognition engine
+      try {
+        rec.start();
+        activeRef.current = true;
+        console.log('[Voice] Started listening for wake words...', { enabled, WAKE_WORDS });
+      } catch (e) {
+        console.warn('[Voice] Could not start recognition:', e);
+      }
+    };
+
+    const handleCmd = async (cmd) => {
+      if (processingRef.current) {
+        console.log('[Voice] Command already processing, skipping:', cmd);
+        return;
+      }
+
+      processingRef.current = true;
+      try {
+        // First, try to match a local command (shortcut handling)
+        const localCommand = matchVoiceCommand(cmd);
+        if (localCommand) {
+          console.log('[Voice] Local command matched:', localCommand);
+          onCommandRef.current?.(localCommand);
+          return;
         }
 
-        const mapCommand = (transcript) => matchVoiceCommand(transcript);
+        // No local command, send to backend chat endpoint
+        console.log('[Voice] Sending to backend:', cmd);
+        const data = await fetchChatText(cmd);
+        const reply = data.reply?.trim() || '';
+        const action = data.action?.trim() || 'none';
 
-        const clearRestartTimer = () => {
-            if (restartTimerRef.current) {
-                clearTimeout(restartTimerRef.current);
-                restartTimerRef.current = null;
-            }
-        };
+        console.log('[Voice] FRIDAY response:', { reply, action });
+        await speak(reply);
 
-        const stop = () => {
-            clearRestartTimer();
-            isStartingRef.current = false;
-            isListeningRef.current = false;
-            if (recognitionRef.current) {
-                try { recognitionRef.current.stop(); } catch (e) {}
-                recognitionRef.current = null;
-            }
-        };
+        // Notify the UI of the new assistant message
+        onConversationRef.current?.({
+          transcript: cmd,
+          reply,
+          action,
+        });
+      } catch (err) {
+        console.warn('[Voice] Command processing failed:', err);
+        // Provide a user-friendly error response
+        await speak('I encountered an error. Please try again.');
+      } finally {
+        processingRef.current = false;
+      }
+    };
 
-        const ensureRecognition = () => {
-            if (recognitionRef.current) return recognitionRef.current;
+    const timer = setTimeout(start, 0);
 
-            const rec = new SpeechRecognition();
-            rec.continuous = true;
-            rec.interimResults = true;
-            rec.lang = 'en-US';
-            rec.maxAlternatives = 1;
-
-            rec.onstart = () => {
-                isStartingRef.current = false;
-                isListeningRef.current = true;
-                console.log('F.R.I.D.A.Y. speech recognition started');
-            };
-
-            rec.onresult = (event) => {
-                let transcript = '';
-                for (let i = event.resultIndex; i < event.results.length; i += 1) {
-                    const result = event.results[i];
-                    if (!result.isFinal) continue;
-                    transcript = `${transcript}${result[0]?.transcript || ''}`.trim();
-                    if (i < event.results.length - 1) transcript += ' ';
-                }
-
-                if (!transcript) return;
-
-                console.log('F.R.I.D.A.Y. Heard:', transcript);
-                // If the passphrase handler consumes this utterance (e.g. unlock
-                // or lock), don't also run a general voice command like "wake".
-                const consumed = onTranscriptRef.current?.(transcript);
-                if (consumed) return;
-                const command = mapCommand(transcript);
-                if (command) {
-                    console.log('F.R.I.D.A.Y. Command:', command);
-                    clearRestartTimer();
-                    onCommandRef.current?.(command);
-                }
-            };
-
-            rec.onend = () => {
-                isListeningRef.current = false;
-                isStartingRef.current = false;
-                if (!activeRef.current || (typeof document !== 'undefined' && document.hidden)) {
-                    return;
-                }
-                console.log('F.R.I.D.A.Y. recognition ended — restarting listener');
-                scheduleRestart(150);
-            };
-
-            rec.onerror = (event) => {
-                const error = event.error || 'unknown';
-                isStartingRef.current = false;
-                isListeningRef.current = false;
-                console.warn('F.R.I.D.A.Y. recognition error', error);
-                // Only permanent failures (permission / no mic) should stop us.
-                // Transient ones (aborted, no-speech, network) must keep listening.
-                const fatal = ['not-allowed', 'service-not-allowed', 'audio-capture'];
-                if (fatal.includes(error)) {
-                    clearRestartTimer();
-                    return;
-                }
-                scheduleRestart(300);
-            };
-
-            recognitionRef.current = rec;
-            return rec;
-        };
-
-        const scheduleRestart = (delay = 600) => {
-            clearRestartTimer();
-            if (!activeRef.current || isStartingRef.current || isListeningRef.current) return;
-            restartTimerRef.current = setTimeout(() => {
-                restartTimerRef.current = null;
-                start();
-            }, delay);
-        };
-
-        const start = () => {
-            if (!enabled || !activeRef.current) return;
-            if (isStartingRef.current || isListeningRef.current) return;
-            if (typeof document !== 'undefined' && document.hidden) return;
-
-            const now = Date.now();
-            if (now - lastStartRef.current < 400) {
-                scheduleRestart(500);
-                return;
-            }
-            lastStartRef.current = now;
-            isStartingRef.current = true;
-
-            const rec = ensureRecognition();
-            try {
-                rec.start();
-            } catch (error) {
-                isStartingRef.current = false;
-                isListeningRef.current = false;
-                console.warn('F.R.I.D.A.Y. recognition failed to start', error);
-                if (activeRef.current) scheduleRestart(1000);
-            }
-        };
-
-        activeRef.current = enabled;
-        clearRestartTimer();
-        if (enabled) start();
-        else stop();
-
-        // Expose debug helpers for runtime inspection and manual control
-        if (typeof window !== 'undefined') {
-            window.fridaySpeechInfo = () => ({
-                hasRecognition: !!recognitionRef.current,
-                isListening: !!isListeningRef.current,
-                isStarting: !!isStartingRef.current,
-                enabled: !!enabled,
-                active: !!activeRef.current,
-            });
-            window.fridaySpeechStart = () => { activeRef.current = true; start(); };
-            window.fridaySpeechStop = () => { activeRef.current = false; stop(); };
-        }
-
-        return () => {
-            activeRef.current = false;
-            clearRestartTimer();
-            stop();
-            try { if (typeof window !== 'undefined') {
-                delete window.fridaySpeechInfo;
-                delete window.fridaySpeechStart;
-                delete window.fridaySpeechStop;
-            } } catch (e) {}
-        };
-    }, [enabled]);
+    return () => {
+      cancelled = true;
+      activeRef.current = false;
+      try { rec?.stop(); } catch (_) {}
+      clearTimeout(timer);
+    };
+  }, [enabled]);
 }

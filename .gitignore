@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+*.env
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Node modules & build outputs
+node_modules/
+dist/
+build/
+
+# Audio temporary files
+backend/temp_audio/
+*.mp3
+
+# Logs
+*.log
+
+# Graphify cache & local output
+graphify-out/
+
+# OS metadata
+.DS_Store
+Thumbs.db

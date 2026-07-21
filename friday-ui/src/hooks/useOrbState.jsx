@@ -469,6 +469,14 @@ export function OrbProvider({ children }) {
     // No spoken passphrase. On success we play the verification animation and
     // mark the session as admin-authed.
     const playUnlockAnimation = useCallback(() => {
+        // Unlock is triggered by a user gesture (fingerprint / password submit),
+        // so this is a valid moment to bring audio + mic online. FRIDAY should
+        // start listening and be able to speak immediately after unlock.
+        try { unlockAudio(); } catch (e) { /* ignore */ }
+        setAudioEnabled(true);
+        setMicEnabled(true);
+        try { if (typeof window !== 'undefined') localStorage.setItem('friday_audio_enabled', 'true'); } catch (e) {}
+
         transitionTo('LISTENING');
         setAuthStep(AUTH_STEPS[0]);
         setResponseMessage('');
@@ -492,7 +500,7 @@ export function OrbProvider({ children }) {
             transitionTo('UNLOCKED');
             setState('verified');
         }, maxDelay + 2200);
-    }, [transitionTo, setState, scheduleTimer]);
+    }, [transitionTo, setState, scheduleTimer, unlockAudio, setMicEnabled]);
 
     // Switch between 'normal' and 'admin'. Leaving admin drops privileges.
     const setMode = useCallback((next) => {
@@ -739,7 +747,7 @@ export function OrbProvider({ children }) {
             unlockWithFingerprintFlow, authenticateWithPassword, lockNow,
             uniforms, isHovered, setIsHovered,
             waveformRef, audioLevelRef, start: startMic, stop: stopMic,
-            transitionTo, runAuthSequence,
+            transitionTo, runAuthSequence, speakText, setResponseMessage,
             // voices
             voices, voiceName, setVoiceName,
             // tts

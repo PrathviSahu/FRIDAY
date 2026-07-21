@@ -108,23 +108,34 @@ export async function unlockWithFingerprint() {
     // only origin browsers accept as an RP ID here — 127.0.0.1 / LAN IPs are
     // rejected, so bail early with a clear reason instead of crashing.
     if (typeof window === 'undefined' || !window.isSecureContext) {
+        console.log('[Fingerprint] Not a secure context');
         return { ok: false, reason: 'insecure' };
     }
     const host = window.location.hostname;
+    console.log('[Fingerprint] Host:', host, 'isSecureContext:', window.isSecureContext);
     if (host !== 'localhost' && !host.endsWith('.localhost')) {
+        console.log('[Fingerprint] Invalid host, must use localhost');
         return { ok: false, reason: 'use-localhost' };
     }
-    if (!(await isSupported())) {
+    const supported = await isSupported();
+    console.log('[Fingerprint] Platform authenticator supported:', supported);
+    if (!supported) {
         return { ok: false, reason: 'unsupported' };
     }
     try {
         if (!getStoredCredId()) {
+            console.log('[Fingerprint] No stored credential, registering...');
             await register();
+            console.log('[Fingerprint] Registration complete');
+        } else {
+            console.log('[Fingerprint] Found stored credential, authenticating...');
         }
         await authenticate();
+        console.log('[Fingerprint] Authentication successful!');
         return { ok: true };
     } catch (err) {
         const name = err && err.name;
+        console.log('[Fingerprint] Error:', name, err && err.message);
         if (name === 'NotAllowedError') return { ok: false, reason: 'cancelled' };
         if (name === 'InvalidStateError') return { ok: false, reason: 'unsupported' };
         return { ok: false, reason: 'error', error: err && err.message };
