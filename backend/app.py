@@ -94,9 +94,11 @@ def chat_text_endpoint(req: ChatTextRequest):
         res = respond(req.text, is_boss=req.is_boss, silence_tts=req.silence_tts)
         return res
     except Exception as e:
+        import traceback
         print(f"[Error] Chat endpoint error: {e}")
+        traceback.print_exc()
         return {
-            "reply": "I'm experiencing a temporary neural link issue, Boss. Please check the backend API configuration.",
+            "reply": "I apologize Prem, I had a momentary connection hiccup. Could you repeat that?",
             "action": "none"
         }
 
