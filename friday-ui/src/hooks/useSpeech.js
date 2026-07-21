@@ -128,8 +128,6 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
       rec.onresult = (e) => {
         if (!enabledRef.current) return;
 
-        noSpeechStreak = 0;
-
         const idx = e.resultIndex ?? 0;
         const rawTranscript = e.results[idx]?.[0]?.transcript ?? '';
         if (!rawTranscript.trim()) return;
@@ -152,6 +150,17 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
           }
         }
 
+        // STOP Speech Recognition immediately so it doesn't listen while processing or repeat commands
+        if (rec) {
+          rec.onend    = null;
+          rec.onerror  = null;
+          rec.onresult = null;
+          try { rec.abort(); } catch (_) {}
+          activeRef.current = false;
+        }
+
+        noSpeechStreak = 0;
+
         let query = rawTranscript.trim()
           .replace(/^(?:if|he|hey|hi|hello|ok|okay|sun|suno)\s+(?:friday|फ्राइडे|fraide|frida)\b\s*/i, '')
           .replace(/^(?:friday|फ्राइडे|fraide|frida)\b\s*/i, '')
@@ -163,6 +172,9 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
         if (query.length > 0) {
           console.log('[Voice] Clean query sent to AI (wake-word removed):', query);
           handleCmd(query);
+        } else {
+          // If empty wake word triggers, restart the mic
+          start();
         }
       };
 
@@ -195,12 +207,14 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
           speakingRef.current = true;
           try { await withTimeout(speak(lockedReply), 10000); } catch (_) {}
           speakingRef.current = false;
+          if (!cancelled && enabledRef.current) start();
           return;
         }
 
         const localCommand = matchVoiceCommand(cmd);
         if (localCommand) {
           onCommandRef.current?.(localCommand);
+          if (!cancelled && enabledRef.current) start();
           return;
         }
 
@@ -217,9 +231,9 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
         speakingRef.current = false;
         noSpeechStreak = 0;
 
-        // Brief buffer after speech finishes
+        // Brief buffer after speech finishes, restart mic
         await new Promise(r => setTimeout(r, 400));
-        if (!cancelled && enabledRef.current && !activeRef.current) start();
+        if (!cancelled && enabledRef.current) start();
 
       } catch (err) {
         console.warn('[Voice] Command error:', err);
