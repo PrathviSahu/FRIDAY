@@ -19,8 +19,6 @@ const WAKE_WORDS = [
 
 /**
  * Returns the command text.
- * 1. If a wake-word is present (e.g. "hey Friday what is the time"), extracts the query after it.
- * 2. If unlocked and system is in active conversation mode, allows direct speech input.
  */
 function extractCommand(transcript, locked) {
   if (!transcript) return null;
@@ -58,23 +56,13 @@ export function useSpeech({ onCommand, onConversation, enabled = true, locked = 
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      console.warn('[Voice] SpeechRecognition not available in this browser.');
-      return;
-    }
+    if (!SR) return;
 
     let cancelled = false;
     let rec = null;
 
-    const start = async () => {
+    const start = () => {
       if (cancelled) return;
-
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {
-        console.warn('[Voice] Mic permission denied:', e);
-        return;
-      }
 
       rec = new SR();
       rec.continuous = true;
@@ -92,30 +80,31 @@ export function useSpeech({ onCommand, onConversation, enabled = true, locked = 
         if (cmd) {
           console.log('[Voice] Processing query:', cmd);
           handleCmd(cmd);
-        } else {
-          console.log('[Voice] Ignored input (system locked, say Hey Friday first):', text);
         }
       };
 
       rec.onerror = (e) => {
-        console.warn('[Voice] Recognition error:', e.error || e);
+        // Silently handle expected events like 'no-speech' or 'aborted' without rapid log spamming/restarts
+        if (e.error === 'no-speech' || e.error === 'aborted') {
+          return;
+        }
+        console.warn('[Voice] Speech error:', e.error);
         if (!cancelled && activeRef.current) {
-          setTimeout(start, 300);
+          setTimeout(start, 500);
         }
       };
 
       rec.onend = () => {
         if (!cancelled && activeRef.current) {
-          setTimeout(start, 100);
+          setTimeout(start, 200);
         }
       };
 
       try {
         rec.start();
         activeRef.current = true;
-        console.log('[Voice] Started listening...');
       } catch (e) {
-        console.warn('[Voice] Could not start recognition:', e);
+        // ignore already started error
       }
     };
 
@@ -127,7 +116,6 @@ export function useSpeech({ onCommand, onConversation, enabled = true, locked = 
         // SECURITY CHECK: If system is LOCKED, block main features
         if (lockedRef.current) {
           const lockedReply = "Access denied, Boss. Please authenticate with your fingerprint key first.";
-          console.log('[Voice] System is locked. Refusing main commands.');
           
           onConversationRef.current?.({
             transcript: cmd,
@@ -139,21 +127,17 @@ export function useSpeech({ onCommand, onConversation, enabled = true, locked = 
           return;
         }
 
-        // UNLOCKED STATE: Execute full system features (Trading, Dashboard, Questions, etc.)
+        // UNLOCKED STATE: Execute full system features
         const localCommand = matchVoiceCommand(cmd);
         if (localCommand) {
-          console.log('[Voice] Local command matched:', localCommand);
           onCommandRef.current?.(localCommand);
           processingRef.current = false;
           return;
         }
 
-        console.log('[Voice] Sending query to FRIDAY AI:', cmd);
         const data = await fetchChatText(cmd);
         const reply = data.reply?.trim() || '';
         const action = data.action?.trim() || 'none';
-
-        console.log('[Voice] FRIDAY response:', { reply, action });
 
         if (action && action !== 'none') {
           onCommandRef.current?.(action);
