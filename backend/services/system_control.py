@@ -1,7 +1,7 @@
 """FRIDAY System Automation Controller (macOS / PC).
 
 Executes system-level commands requested by Boss:
-- Spotify Advanced Media Automation (Play specific song, Play Hindi / English playlist, Volume Up/Down, Mute, Next/Prev, Repeat, Quit Spotify)
+- Spotify Advanced Media Automation (Play specific song, Set Volume %, Play Hindi / English playlist, Volume Up/Down, Mute, Next/Prev, Repeat, Quit Spotify)
 - Open Applications (Spotify, Brave, VS Code, Terminal, Finder, etc.)
 - Control Web & Browser (YouTube, Google, GitHub, URL navigation in Brave)
 """
@@ -80,14 +80,22 @@ def search_and_play_spotify(song_or_playlist: str) -> bool:
         return False
 
 
-def control_spotify(command: str, query: str = "") -> bool:
-    """Control Spotify playback, volume, playlists, and repeat mode via macOS AppleScript."""
+def control_spotify(command: str, query: str = "", volume_percent: int = -1) -> bool:
+    """Control Spotify playback, volume %, playlists, and repeat mode via macOS AppleScript."""
     if not IS_MAC:
         return False
     
     cmd = command.lower().strip()
     try:
         open_app("Spotify")
+
+        if volume_percent >= 0:
+            vol_clamped = max(0, min(100, volume_percent))
+            script = f'tell application "Spotify" to set sound volume to {vol_clamped}'
+            subprocess.Popen(["osascript", "-e", script])
+
+        if cmd == "set_volume":
+            return True
 
         if cmd == "play":
             script = 'tell application "Spotify" to play'
@@ -158,12 +166,15 @@ def open_google_search(query: str) -> bool:
     return open_url_in_brave(url)
 
 
-def execute_system_command(action_type: str, target: str = "") -> str:
+def execute_system_command(action_type: str, target: str = "", volume_percent: int = -1) -> str:
     """Router for executing OS automation requests."""
     action = action_type.lower().strip()
     target_clean = target.strip()
 
-    print(f"[Automation] Executing action='{action}' target='{target_clean}'")
+    print(f"[Automation] Executing action='{action}' target='{target_clean}' vol={volume_percent}")
+
+    if volume_percent >= 0:
+        control_spotify("set_volume", volume_percent=volume_percent)
 
     if action == "open_spotify":
         open_app("Spotify")
@@ -174,22 +185,25 @@ def execute_system_command(action_type: str, target: str = "") -> str:
         return "Closing Spotify, Boss."
 
     elif action == "play_hindi_playlist":
-        control_spotify("play_hindi_playlist")
+        control_spotify("play_hindi_playlist", volume_percent=volume_percent)
         return "Playing your Hindi playlist 'Only for me', Boss."
 
     elif action == "play_english_playlist":
-        control_spotify("play_english_playlist")
+        control_spotify("play_english_playlist", volume_percent=volume_percent)
         return "Playing your English playlist 'Losing my self', Boss."
 
     elif action == "play_specific":
-        control_spotify("play_specific", target_clean)
-        return f"Playing '{target_clean}' on Spotify, Boss."
+        control_spotify("play_specific", target_clean, volume_percent=volume_percent)
+        msg = f"Playing '{target_clean}' on Spotify, Boss."
+        if volume_percent >= 0:
+            msg += f" Sound set to {volume_percent}%."
+        return msg
 
     elif action == "play_music" or action == "play_spotify":
         if target_clean:
-            control_spotify("play_specific", target_clean)
+            control_spotify("play_specific", target_clean, volume_percent=volume_percent)
             return f"Playing '{target_clean}' on Spotify, Boss."
-        control_spotify("play")
+        control_spotify("play", volume_percent=volume_percent)
         return "Playing Spotify music now, Boss."
 
     elif action == "pause_music" or action == "pause_spotify":
@@ -215,6 +229,10 @@ def execute_system_command(action_type: str, target: str = "") -> str:
     elif action == "volume_down":
         control_spotify("volume_down")
         return "Decreasing Spotify volume, Boss."
+
+    elif action == "set_volume":
+        control_spotify("set_volume", volume_percent=volume_percent)
+        return f"Setting Spotify volume to {volume_percent}%, Boss."
 
     elif action == "mute":
         control_spotify("mute")
