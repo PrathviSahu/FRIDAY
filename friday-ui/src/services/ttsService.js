@@ -4,6 +4,16 @@
  */
 let currentAudio = null;
 
+export function stopSpeaking() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
 export async function speak(text) {
   if (!text || typeof text !== 'string') return;
 

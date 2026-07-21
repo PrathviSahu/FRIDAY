@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { matchVoiceCommand } from './voiceCommands';
 import { fetchChatText } from '../api/chatText';
-import { speak } from '../services/ttsService';
+import { speak, stopSpeaking } from '../services/ttsService';
 
 const withTimeout = (promise, ms) =>
   Promise.race([
@@ -126,11 +126,7 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
       };
 
       rec.onresult = (e) => {
-        // Mic is "off" or FRIDAY is speaking — drop the result
-        if (!enabledRef.current || speakingRef.current) {
-          console.log('[Voice] Suppressing result — mic disabled or FRIDAY speaking.');
-          return;
-        }
+        if (!enabledRef.current) return;
 
         noSpeechStreak = 0;
 
@@ -139,6 +135,22 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
         if (!rawTranscript.trim()) return;
 
         console.log('[Voice] Raw speech recognized:', rawTranscript);
+
+        // Check if user spoke a wake word ("Friday", "Hey Friday", "Suno Friday", "फ्राइडे")
+        const isWakeWordPresent = /^(?:if|he|hey|hi|hello|ok|okay|sun|suno)\s+(?:friday|फ्राइडे|fraide|frida)\b|\b(?:friday|फ्राइडे|fraide|frida)\b/i.test(rawTranscript.trim());
+
+        // ⚡ INTERRUPT FEATURE: If FRIDAY is currently speaking and user calls "Friday", stop TTS immediately!
+        if (speakingRef.current) {
+          if (isWakeWordPresent) {
+            console.log('[Voice Interrupt] Wake-word detected while FRIDAY is speaking! Stopping TTS playback...');
+            stopSpeaking();
+            speakingRef.current = false;
+          } else {
+            // Drop self-echo or background speech while FRIDAY is talking
+            console.log('[Voice] Suppressing self-echo while FRIDAY is speaking.');
+            return;
+          }
+        }
 
         let query = rawTranscript.trim()
           .replace(/^(?:if|he|hey|hi|hello|ok|okay|sun|suno)\s+(?:friday|फ्राइडे|fraide|frida)\b\s*/i, '')
@@ -199,24 +211,15 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
         if (action && action !== 'none') onCommandRef.current?.(action);
         onConvRef.current?.({ transcript: cmd, reply, action });
 
-        // ── Pause mic during TTS so FRIDAY's voice isn't re-captured ─────────
+        // ── Speak response ───────────────────────────────────────────────────
         speakingRef.current = true;
-        if (rec) {
-          rec.onend    = null;
-          rec.onerror  = null;
-          rec.onresult = null;
-          try { rec.stop(); } catch (_) {}
-          activeRef.current = false;
-        }
-
         try { await withTimeout(speak(reply), 15000); } catch (_) {}
-
         speakingRef.current = false;
         noSpeechStreak = 0;
 
-        // Brief echo fade buffer, then restart — but only if mic is still enabled
-        await new Promise(r => setTimeout(r, 600));
-        if (!cancelled && enabledRef.current) start();
+        // Brief buffer after speech finishes
+        await new Promise(r => setTimeout(r, 400));
+        if (!cancelled && enabledRef.current && !activeRef.current) start();
 
       } catch (err) {
         console.warn('[Voice] Command error:', err);
