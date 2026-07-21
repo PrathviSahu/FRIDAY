@@ -1,9 +1,9 @@
 """FRIDAY System Automation Controller (macOS / PC).
 
 Executes system-level commands requested by Boss:
+- Spotify Media Automation (Play/Pause, Next/Previous, Play specific track/playlist)
 - Open Applications (Spotify, Brave, VS Code, Terminal, Finder, etc.)
 - Control Web & Browser (YouTube, Google, GitHub, URL navigation in Brave)
-- Media Control (Play/Pause music, Next track, Adjust Volume)
 """
 import os
 import subprocess
@@ -26,6 +26,40 @@ def open_app(app_name: str) -> bool:
     return False
 
 
+def control_spotify(command: str, query: str = "") -> bool:
+    """Control Spotify playback via macOS AppleScript."""
+    if not IS_MAC:
+        return False
+    
+    cmd = command.lower().strip()
+    try:
+        # Ensure Spotify is running first
+        open_app("Spotify")
+
+        if cmd == "play":
+            script = 'tell application "Spotify" to play'
+        elif cmd == "pause" or cmd == "stop":
+            script = 'tell application "Spotify" to pause'
+        elif cmd == "next":
+            script = 'tell application "Spotify" to next track'
+        elif cmd == "previous":
+            script = 'tell application "Spotify" to previous track'
+        elif cmd == "play_query" and query:
+            # Search and play track/playlist via Spotify URI scheme
+            q_encoded = urllib.parse.quote(query.strip())
+            subprocess.Popen(["open", f"spotify:search:{q_encoded}"])
+            # Auto-trigger play after search opens
+            script = 'delay 1.5\ntell application "System Events" to key code 36' # Press Enter
+        else:
+            script = 'tell application "Spotify" to play'
+
+        subprocess.Popen(["osascript", "-e", script])
+        return True
+    except Exception as err:
+        print(f"[Automation] Spotify control error: {err}")
+        return False
+
+
 def open_url_in_brave(url: str) -> bool:
     """Open a URL in Brave browser (or default browser)."""
     target_url = url if url.startswith("http") else f"https://{url}"
@@ -34,7 +68,6 @@ def open_url_in_brave(url: str) -> bool:
             subprocess.Popen(["open", "-a", "Brave Browser", target_url])
             return True
         except Exception:
-            # Fallback to standard open
             subprocess.Popen(["open", target_url])
             return True
     return False
@@ -67,6 +100,22 @@ def execute_system_command(action_type: str, target: str = "") -> str:
     if action == "open_spotify":
         open_app("Spotify")
         return "Opening Spotify now, Boss."
+
+    elif action == "play_music" or action == "play_spotify":
+        control_spotify("play", target_clean)
+        return f"Playing '{target_clean}' on Spotify, Boss." if target_clean else "Playing your Spotify music now, Boss."
+
+    elif action == "pause_music" or action == "pause_spotify":
+        control_spotify("pause")
+        return "Pausing Spotify music, Boss."
+
+    elif action == "next_track":
+        control_spotify("next")
+        return "Skipping to the next track, Boss."
+
+    elif action == "previous_track":
+        control_spotify("previous")
+        return "Playing previous track, Boss."
 
     elif action == "open_brave":
         if target_clean:

@@ -1,7 +1,7 @@
 """FRIDAY's Adaptive Learning & Dual-Engine Hybrid Brain.
 
 Uses:
-1. Groq (Llama 3.3 70B) for ultra-fast (~150ms) real-time voice conversation, OS application automation, & UI control.
+1. Groq (Llama 3.3 70B) for ultra-fast (~150ms) real-time voice conversation, OS application automation, Spotify media control, & UI control.
 2. Gemini (Gemini 2.5) for complex multimodal/document processing & fallbacks.
 """
 import os
@@ -26,7 +26,8 @@ from services.system_control import execute_system_command
 KNOWN_ACTIONS = [
     "dashboard", "trading", "engineering", "vscode", "browser",
     "lock", "allow_guest", "revoke_guest", "remember",
-    "open_spotify", "open_brave", "open_youtube", "open_app", "search_web", "none"
+    "open_spotify", "play_music", "pause_music", "next_track", "previous_track",
+    "open_brave", "open_youtube", "open_app", "search_web", "none"
 ]
 
 _BOSS_BASE_PROMPT = (
@@ -35,22 +36,26 @@ _BOSS_BASE_PROMPT = (
     "confident, natural, and lightly witty — never robotic. "
     "CRITICAL USER IDENTIFICATION: Your Boss's name is 'Prathvi Sahu' (spelled P-R-A-T-H-V-I S-A-H-U with an 'a', NOT 'Prithvi' with an 'i'). "
     "Even if browser Speech-To-Text mishears or transcribes it as 'Prithvi' or 'P-r-i-t-h-v-i', ALWAYS correct it to 'Prathvi Sahu'. "
-    "SYSTEM AUTOMATION CONTROL: You can control the PC. When the user asks to open apps or web pages: "
+    "SYSTEM AUTOMATION CONTROL: You can control the PC & Spotify. When the user asks: "
     "- open_spotify: open Spotify app "
+    "- play_music: play music/song/playlist on Spotify (set 'target_app' to song/playlist query if specified) "
+    "- pause_music: pause/stop Spotify music "
+    "- next_track: skip to next song "
+    "- previous_track: play previous song "
     "- open_brave: open Brave browser (set 'target_app' to a URL if requested) "
     "- open_youtube: open YouTube in Brave (set 'target_app' to search query if requested) "
     "- open_app: open any Mac app (set 'target_app' to app name e.g. 'Terminal', 'Calculator', 'Finder', 'Slack') "
     "- search_web: search Google in Brave (set 'target_app' to search query) "
     "- dashboard / trading / engineering / vscode / browser / lock / allow_guest / revoke_guest / remember "
     "ALWAYS respond with ONLY a single valid JSON object in the form: "
-    '{"reply": "<spoken output>", "action": "<action>", "target_app": "<optional app/url/query>", "remember_key": null, "remember_value": null}'
+    '{"reply": "<spoken output>", "action": "<action>", "target_app": "<optional app/song/url/query>", "remember_key": null, "remember_value": null}'
 )
 
 _GUEST_SYSTEM_PROMPT = (
     "You are F.R.I.D.A.Y., Tony Stark's AI assistant. A guest (not your Boss Prathvi) is talking to you, "
     "and access permission has NOT been granted by your Boss yet. "
     "Be hilariously sarcastic, polite yet firm, and inform them that only your Boss Prathvi Sahu can give them system permission. "
-    "REFUSE any system commands, app opening, or memory updates — set action to 'none'. "
+    "REFUSE any system commands, Spotify control, or memory updates — set action to 'none'. "
     "Keep replies concise (1-2 sentences) and witty. "
     "ALWAYS respond with a single JSON object: "
     '{"reply": "<sarcastic response to guest>", "action": "none"}'
@@ -96,7 +101,10 @@ def _extract_json(text: str) -> dict:
 
 def _handle_system_automation(action: str, target: str) -> str:
     """Helper to dispatch system commands to macOS execution engine."""
-    if action in ["open_spotify", "open_brave", "open_youtube", "open_app", "search_web"]:
+    if action in [
+        "open_spotify", "play_music", "pause_music", "next_track", "previous_track",
+        "open_brave", "open_youtube", "open_app", "search_web"
+    ]:
         return execute_system_command(action, target)
     return ""
 
@@ -130,7 +138,20 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
         log_conversation(role="assistant", message=reply_msg)
         return {"reply": reply_msg, "action": "revoke_guest"}
 
-    # Direct fallback shortcuts for instant execution
+    # Direct fallback shortcuts for instant playback execution
+    if "play" in lower_text and ("song" in lower_text or "music" in lower_text or "playlist" in lower_text or "spotify" in lower_text):
+        target = text.lower().replace("play", "").replace("song", "").replace("playlist", "").replace("from my", "").replace("from", "").replace("spotify", "").strip()
+        execute_system_command("play_music", target)
+        reply_msg = f"Playing {target} on Spotify, Boss." if target else "Playing your Spotify music now, Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "play_music"}
+
+    if "pause" in lower_text and ("music" in lower_text or "song" in lower_text or "spotify" in lower_text):
+        execute_system_command("pause_music")
+        reply_msg = "Pausing Spotify, Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "pause_music"}
+
     if "open spotify" in lower_text:
         execute_system_command("open_spotify")
         reply_msg = "Opening Spotify now, Boss."
