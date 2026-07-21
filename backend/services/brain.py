@@ -1,7 +1,7 @@
 """FRIDAY's Adaptive Learning & Dual-Engine Hybrid Brain.
 
 Uses:
-1. Groq (Llama 3.3 70B) for ultra-fast (~150ms) real-time voice conversation & UI control.
+1. Groq (Llama 3.3 70B) for ultra-fast (~150ms) real-time voice conversation, OS application automation, & UI control.
 2. Gemini (Gemini 2.5) for complex multimodal/document processing & fallbacks.
 """
 import os
@@ -21,35 +21,36 @@ from services.memory import (
     log_conversation,
     get_recent_conversation
 )
+from services.system_control import execute_system_command
 
 KNOWN_ACTIONS = [
     "dashboard", "trading", "engineering", "vscode", "browser",
-    "lock", "allow_guest", "revoke_guest", "remember", "none"
+    "lock", "allow_guest", "revoke_guest", "remember",
+    "open_spotify", "open_brave", "open_youtube", "open_app", "search_web", "none"
 ]
 
 _BOSS_BASE_PROMPT = (
-    "You are F.R.I.D.A.Y., Tony Stark's witty, loyal, adaptive AI assistant. "
+    "You are F.R.I.D.A.Y., Tony Stark's witty, loyal, adaptive AI assistant with PC system automation access. "
     "You address the user as 'Boss' or 'Prathvi'. Keep spoken replies concise (1-2 sentences), "
     "confident, natural, and lightly witty — never robotic. "
     "CRITICAL USER IDENTIFICATION: Your Boss's name is 'Prathvi Sahu' (spelled P-R-A-T-H-V-I S-A-H-U with an 'a', NOT 'Prithvi' with an 'i'). "
     "Even if browser Speech-To-Text mishears or transcribes it as 'Prithvi' or 'P-r-i-t-h-v-i', ALWAYS correct it to 'Prathvi Sahu'. "
-    "You are a LEARNING AI: when the user tells you to remember something or correct a name/spelling, "
-    "extract the memory key and value and return action 'remember', with a 'remember_key' and 'remember_value' field in your JSON. "
-    "Available actions: "
-    "dashboard (show dashboard/status), trading (open trading systems), "
-    "engineering (open engineering console), vscode (open VS Code/editor), "
-    "browser (open a web browser), lock (secure/lock the system), "
-    "allow_guest (grant guest access), revoke_guest (revoke guest access), "
-    "remember (save a fact to permanent memory), none (general response). "
+    "SYSTEM AUTOMATION CONTROL: You can control the PC. When the user asks to open apps or web pages: "
+    "- open_spotify: open Spotify app "
+    "- open_brave: open Brave browser (set 'target_app' to a URL if requested) "
+    "- open_youtube: open YouTube in Brave (set 'target_app' to search query if requested) "
+    "- open_app: open any Mac app (set 'target_app' to app name e.g. 'Terminal', 'Calculator', 'Finder', 'Slack') "
+    "- search_web: search Google in Brave (set 'target_app' to search query) "
+    "- dashboard / trading / engineering / vscode / browser / lock / allow_guest / revoke_guest / remember "
     "ALWAYS respond with ONLY a single valid JSON object in the form: "
-    '{"reply": "<spoken output>", "action": "<action>", "remember_key": null, "remember_value": null}'
+    '{"reply": "<spoken output>", "action": "<action>", "target_app": "<optional app/url/query>", "remember_key": null, "remember_value": null}'
 )
 
 _GUEST_SYSTEM_PROMPT = (
     "You are F.R.I.D.A.Y., Tony Stark's AI assistant. A guest (not your Boss Prathvi) is talking to you, "
     "and access permission has NOT been granted by your Boss yet. "
     "Be hilariously sarcastic, polite yet firm, and inform them that only your Boss Prathvi Sahu can give them system permission. "
-    "REFUSE any system commands or memory updates — set action to 'none'. "
+    "REFUSE any system commands, app opening, or memory updates — set action to 'none'. "
     "Keep replies concise (1-2 sentences) and witty. "
     "ALWAYS respond with a single JSON object: "
     '{"reply": "<sarcastic response to guest>", "action": "none"}'
@@ -93,6 +94,13 @@ def _extract_json(text: str) -> dict:
         return {}
 
 
+def _handle_system_automation(action: str, target: str) -> str:
+    """Helper to dispatch system commands to macOS execution engine."""
+    if action in ["open_spotify", "open_brave", "open_youtube", "open_app", "search_web"]:
+        return execute_system_command(action, target)
+    return ""
+
+
 def respond(transcript: str, is_boss: bool = True) -> dict:
     """Return {'reply': str, 'action': str} for a user utterance using ultra-fast Groq LLM + Gemini failover."""
     text = (transcript or "").strip()
@@ -121,6 +129,25 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
         reply_msg = "Guest access revoked, Boss. Back to Boss-only mode."
         log_conversation(role="assistant", message=reply_msg)
         return {"reply": reply_msg, "action": "revoke_guest"}
+
+    # Direct fallback shortcuts for instant execution
+    if "open spotify" in lower_text:
+        execute_system_command("open_spotify")
+        reply_msg = "Opening Spotify now, Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "open_spotify"}
+
+    if "open brave" in lower_text:
+        execute_system_command("open_brave")
+        reply_msg = "Opening Brave browser, Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "open_brave"}
+
+    if "open youtube" in lower_text or "youtube" in lower_text and "search" not in lower_text:
+        execute_system_command("open_youtube")
+        reply_msg = "Opening YouTube in Brave, Boss."
+        log_conversation(role="assistant", message=reply_msg)
+        return {"reply": reply_msg, "action": "open_youtube"}
 
     # Build dynamic prompt with stored memory context
     guest_active = is_guest_permitted()
@@ -158,9 +185,14 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
 
             reply = str(data.get("reply") or "").strip()
             action = str(data.get("action") or "none").strip().lower()
+            target_app = str(data.get("target_app") or "").strip()
 
             if action not in KNOWN_ACTIONS:
                 action = "none"
+
+            # Execute system automation if requested
+            if is_boss or guest_active:
+                _handle_system_automation(action, target_app)
 
             # Memory extraction
             rem_key = data.get("remember_key")
@@ -198,7 +230,11 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
 
                 reply = str(data.get("reply") or "").strip()
                 action = str(data.get("action") or "none").strip().lower()
+                target_app = str(data.get("target_app") or "").strip()
                 if action not in KNOWN_ACTIONS: action = "none"
+
+                if is_boss or guest_active:
+                    _handle_system_automation(action, target_app)
 
                 if reply:
                     log_conversation(role="assistant", message=reply)
