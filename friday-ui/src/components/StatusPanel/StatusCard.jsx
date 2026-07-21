@@ -2,7 +2,8 @@ import { motion } from 'framer-motion';
 import AnimatedCard from '../Panels/AnimatedCard';
 import { useFriday } from '../../context/FridayContext';
 import { useEffect, useState, useRef } from 'react';
-import { Shield, Wifi, TrendingUp, Database, Fingerprint } from 'lucide-react';
+import { Shield, Wifi, TrendingUp, Database, Fingerprint, Music, Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
+import { fetchChatText } from '../../api/chatText';
 
 const STATUS_ITEMS = [
     { icon: Shield,      label: 'CORE SYSTEMS',    sub: 'LOCKED',  dot: '#ff4444' },
@@ -15,7 +16,34 @@ export default function StatusCard() {
     const { showDebug } = useFriday();
     const [shift, setShift] = useState(0);
     const [fixedStyle, setFixedStyle] = useState(null);
+    const [spotifyTrack, setSpotifyTrack] = useState({ playing: false, title: '', artist: '' });
+    const [volume, setVolume] = useState(50);
     const wrapperRef = useRef(null);
+
+    const handleMediaAction = async (cmd) => {
+        try {
+            await fetchChatText(cmd);
+            setTimeout(async () => {
+                const res = await fetch('http://localhost:8000/api/spotify/current-track');
+                if (res.ok) setSpotifyTrack(await res.json());
+            }, 500);
+        } catch (_) {}
+    };
+
+    useEffect(() => {
+        const fetchTrack = async () => {
+            try {
+                const res = await fetch('http://localhost:8000/api/spotify/current-track');
+                if (res.ok) {
+                    const data = await res.json();
+                    setSpotifyTrack(data);
+                }
+            } catch (_) {}
+        };
+        fetchTrack();
+        const interval = setInterval(fetchTrack, 4000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         const calcShift = () => {
@@ -84,22 +112,73 @@ export default function StatusCard() {
                     </motion.div>
                 ))}
 
-                {/* Divider */}
-                <div className="border-t border-[#00B7FF]/10 pt-3 mt-1">
-                    <div className="font-orbitron text-[9px] tracking-[0.2em] text-[#00B7FF]/50 mb-3">QUICK HINT</div>
+                {/* Spotify Currently Playing Widget */}
+                <div className="border-t border-[#00B7FF]/10 pt-2 mt-1">
+                    <div className="flex items-center justify-between font-orbitron text-[8px] tracking-[0.2em] text-[#00B7FF]/60 mb-2">
+                        <span className="flex items-center gap-1.5"><Music size={10} className="text-[#00B7FF]" /> SPOTIFY FEED</span>
+                        <span className={`text-[7px] px-1.5 py-0.5 rounded font-mono ${spotifyTrack.playing ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-cyan-500/10 text-cyan-400/50'}`}>
+                            {spotifyTrack.playing ? 'PLAYING' : spotifyTrack.title ? 'PAUSED' : 'OFFLINE'}
+                        </span>
+                    </div>
 
-                    {/* Voice hint */}
-                    <div className="text-center space-y-2">
-                        <p className="font-grotesk text-xs text-[#DFFAFF]/70 italic">"Hey Friday"</p>
-                        <p className="text-[8px] text-[#00B7FF]/40 tracking-widest">— OR —</p>
-
-                        {/* Fingerprint icon */}
-                        <div className="flex justify-center">
-                            <div className="border border-[#00B7FF]/30 rounded p-2" style={{ filter: 'drop-shadow(0 0 4px rgba(0,183,255,0.3))' }}>
-                                <Fingerprint size={24} className="text-[#00B7FF]/60" />
+                    <div className="bg-cyan-950/20 border border-[#00B7FF]/15 rounded p-2 text-left space-y-2">
+                        {spotifyTrack.title ? (
+                            <div>
+                                <div className="font-orbitron text-[9px] font-bold text-[#DFFAFF] truncate drop-shadow-[0_0_6px_rgba(0,183,255,0.4)]">
+                                    {spotifyTrack.title}
+                                </div>
+                                <div className="font-grotesk text-[8px] text-[#00B7FF]/70 truncate mt-0.5">
+                                    {spotifyTrack.artist || 'Unknown Artist'}
+                                </div>
                             </div>
+                        ) : (
+                            <div className="text-[8px] font-orbitron text-[#DFFAFF]/40 text-center py-1">
+                                No active playback
+                            </div>
+                        )}
+
+                        {/* Playback Control Buttons */}
+                        <div className="flex items-center justify-center gap-2 pt-1 border-t border-[#00B7FF]/10">
+                            <button
+                                onClick={() => handleMediaAction('previous track')}
+                                className="p-1 rounded hover:bg-[#00B7FF]/20 text-[#00B7FF] transition-all cursor-pointer"
+                                title="Previous Track"
+                            >
+                                <SkipBack size={12} />
+                            </button>
+                            <button
+                                onClick={() => handleMediaAction(spotifyTrack.playing ? 'pause music' : 'play music')}
+                                className="p-1.5 rounded-full bg-[#00B7FF]/20 hover:bg-[#00B7FF]/30 border border-[#00B7FF]/40 text-[#DFFAFF] transition-all cursor-pointer"
+                                title={spotifyTrack.playing ? 'Pause' : 'Play'}
+                            >
+                                {spotifyTrack.playing ? <Pause size={12} /> : <Play size={12} />}
+                            </button>
+                            <button
+                                onClick={() => handleMediaAction('next track')}
+                                className="p-1 rounded hover:bg-[#00B7FF]/20 text-[#00B7FF] transition-all cursor-pointer"
+                                title="Next Track"
+                            >
+                                <SkipForward size={12} />
+                            </button>
                         </div>
-                        <p className="text-[8px] tracking-[0.2em] text-[#DFFAFF]/40 uppercase">Scan to Unlock</p>
+
+                        {/* Volume Control Bar */}
+                        <div className="flex items-center gap-2 pt-1">
+                            <Volume2 size={11} className="text-[#00B7FF]/60 shrink-0" />
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={volume}
+                                onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setVolume(val);
+                                    handleMediaAction(`volume ${val}%`);
+                                }}
+                                className="w-full h-1 bg-[#00B7FF]/20 rounded-lg appearance-none cursor-pointer accent-[#00B7FF]"
+                            />
+                            <span className="font-mono text-[7px] text-[#00B7FF]/70 w-5 text-right">{volume}%</span>
+                        </div>
                     </div>
                 </div>
             </div>
