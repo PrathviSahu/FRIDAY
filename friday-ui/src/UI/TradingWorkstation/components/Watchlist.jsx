@@ -15,25 +15,7 @@ const INITIAL_FOREX_WATCHLIST = [
     { symbol: 'FX:GBPJPY', name: 'GBPJPY', full: 'GBP / Japanese Yen', price: '218.36', change: '+0.110', changePct: '+0.05%', category: 'FOREX', isPositive: true },
 ];
 
-const INITIAL_INDIAN_WATCHLIST = [
-    { symbol: 'NSE:NIFTY', name: 'NIFTY 50', full: 'Nifty 50 Index', price: '24,187.70', change: '-50.80', changePct: '-0.21%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:BANKNIFTY', name: 'BANKNIFTY', full: 'Nifty Bank Index', price: '52,340.50', change: '+180.20', changePct: '+0.35%', category: 'INDIAN STOCKS', isPositive: true },
-    { symbol: 'NSE:RELIANCE', name: 'RELIANCE', full: 'Reliance Industries Ltd.', price: '2,980.45', change: '+42.10', changePct: '+1.43%', category: 'INDIAN STOCKS', isPositive: true },
-    { symbol: 'NSE:TCS', name: 'TCS', full: 'Tata Consultancy Services', price: '3,890.00', change: '-12.50', changePct: '-0.32%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:INFY', name: 'INFY', full: 'Infosys Limited', price: '1,560.20', change: '+18.40', changePct: '+1.19%', category: 'INDIAN STOCKS', isPositive: true },
-    { symbol: 'NSE:HDFCBANK', name: 'HDFCBANK', full: 'HDFC Bank Limited', price: '1,680.00', change: '+8.50', changePct: '+0.51%', category: 'INDIAN STOCKS', isPositive: true },
-    { symbol: 'NSE:ICICIBANK', name: 'ICICIBANK', full: 'ICICI Bank Limited', price: '1,120.30', change: '+5.10', changePct: '+0.46%', category: 'INDIAN STOCKS', isPositive: true },
-    { symbol: 'NSE:SBIN', name: 'SBIN', full: 'State Bank of India', price: '845.60', change: '-3.20', changePct: '-0.38%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:TATAMOTORS', name: 'TATAMOTORS', full: 'Tata Motors Limited', price: '985.40', change: '+14.20', changePct: '+1.46%', category: 'INDIAN STOCKS', isPositive: true },
-    { symbol: 'NSE:LIKHITH', name: 'LIKHITH', full: 'Likhitha Infrastructure', price: '235.25', change: '-0.10', changePct: '-0.04%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:DBOL', name: 'DBOL', full: 'Dwarikesh Sugar Industries', price: '106.10', change: '-1.41', changePct: '-1.31%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:TITAGARH', name: 'TITAGARH', full: 'Titagarh Rail Systems', price: '843.60', change: '-23.60', changePct: '-2.72%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:BLACKBOX', name: 'BLACKBOX', full: 'Black Box Limited', price: '574.65', change: '+0.85', changePct: '+0.15%', category: 'INDIAN STOCKS', isPositive: true },
-    { symbol: 'NSE:OMAXAUTO', name: 'OMAXAUTO', full: 'Omax Autos Limited', price: '169.34', change: '-0.58', changePct: '-0.34%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:HINDALCO', name: 'HINDALCO', full: 'Hindalco Industries', price: '218.45', change: '-3.80', changePct: '-1.71%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:GEMAR', name: 'GEMAR', full: 'GMR Airports Infrastructure', price: '182.22', change: '-2.66', changePct: '-1.44%', category: 'INDIAN STOCKS', isPositive: false },
-    { symbol: 'NSE:AEQUS', name: 'AEQUS', full: 'Aequs Consumer Products', price: '238.50', change: '-1.87', changePct: '-0.78%', category: 'INDIAN STOCKS', isPositive: false },
-];
+const INITIAL_INDIAN_WATCHLIST = [];
 
 export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
     const [activeTab, setActiveTab] = useState('Forex'); // 'Forex' | 'Indian'
