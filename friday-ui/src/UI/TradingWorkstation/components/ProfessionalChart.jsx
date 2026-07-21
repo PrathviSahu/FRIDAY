@@ -1,33 +1,33 @@
 import React, { useEffect, useRef } from 'react';
 
-// Maps user symbols to official TradingView widget symbols with focus on Indian Stock Market (NSE / BSE / NIFTY / BANKNIFTY)
-const SYMBOL_MAP = {
-    'NIFTY': 'NSE:NIFTY',
-    'NIFTY50': 'NSE:NIFTY',
-    'BANKNIFTY': 'NSE:BANKNIFTY',
-    'FINNIFTY': 'NSE:FINNIFTY',
-    'RELIANCE': 'NSE:RELIANCE',
-    'TCS': 'NSE:TCS',
-    'INFY': 'NSE:INFY',
-    'HDFCBANK': 'NSE:HDFCBANK',
-    'ICICIBANK': 'NSE:ICICIBANK',
-    'SBIN': 'NSE:SBIN',
-    'TATAMOTORS': 'NSE:TATAMOTORS',
-    'TATASTEEL': 'NSE:TATASTEEL',
-    'BHARTIARTL': 'NSE:BHARTIARTL',
-    'ITC': 'NSE:ITC',
-    'LIKHITH': 'NSE:LIKHITH',
-    'DBOL': 'NSE:DBOL',
-    'TITAGARH': 'NSE:TITAGARH',
-    'XAUUSD': 'OANDA:XAUUSD',
-    'GOLD': 'OANDA:XAUUSD',
-    'BTCUSD': 'BINANCE:BTCUSDT',
-};
+// Default Indian Stock Watchlist symbols matching user's exact TradingView layout
+const DEFAULT_INDIAN_WATCHLIST = [
+    'NSE:NIFTY',
+    'NSE:BANKNIFTY',
+    'NSE:RELIANCE',
+    'NSE:TCS',
+    'NSE:INFY',
+    'NSE:HDFCBANK',
+    'NSE:ICICIBANK',
+    'NSE:SBIN',
+    'NSE:TATAMOTORS',
+    'NSE:TATASTEEL',
+    'NSE:BHARTIARTL',
+    'NSE:ITC',
+    'NSE:LIKHITH',
+    'NSE:DBOL',
+    'NSE:TITAGARH',
+    'NSE:BLACKBOX',
+    'NSE:OMAXAUTO',
+    'NSE:HINDALCO',
+    'NSE:GEMAR',
+    'NSE:AEQUS',
+    'OANDA:XAUUSD',
+    'BINANCE:BTCUSDT',
+];
 
-export default function ProfessionalChart({ symbol = 'NSE:NIFTY' }) {
+export default function ProfessionalChart() {
     const containerRef = useRef(null);
-
-    const tvSymbol = SYMBOL_MAP[symbol] || (symbol.includes(':') ? symbol : `NSE:${symbol.replace(/[^a-zA-Z0-9]/g, '')}`);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -40,34 +40,35 @@ export default function ProfessionalChart({ symbol = 'NSE:NIFTY' }) {
             if (window.TradingView && containerRef.current) {
                 new window.TradingView.widget({
                     autosize: true,
-                    symbol: tvSymbol,
+                    symbol: 'NSE:NIFTY',
                     interval: '5',
                     timezone: 'Asia/Kolkata',
                     theme: 'dark',
                     style: '1',
                     locale: 'in',
-                    toolbar_bg: '#080d1a',
-                    enable_publishing: false,
-                    hide_side_toolbar: false, // Show professional drawing tools
-                    allow_symbol_change: true,
-                    details: true,
+                    toolbar_bg: '#131722',
+                    enable_publishing: true,
+                    hide_side_toolbar: false, // Left drawing tools (Trendlines, Fibs, Position tools)
+                    allow_symbol_change: true, // Native symbol search & add to watchlist
+                    watchlist: DEFAULT_INDIAN_WATCHLIST, // Custom Indian stock market watchlist
+                    details: true, // Native detail panel (Bid/Ask, Spread, Volume)
                     hotlist: true,
                     calendar: true,
                     show_popup_button: true,
                     popup_width: '1000',
                     popup_height: '650',
                     container_id: 'tradingview_widget_container',
-                    backgroundColor: '#080d1a',
+                    backgroundColor: '#131722',
                     gridColor: 'rgba(30, 41, 59, 0.3)',
                 });
             }
         };
 
         containerRef.current.appendChild(script);
-    }, [tvSymbol]);
+    }, []);
 
     return (
-        <div className="flex-1 w-full h-full bg-[#080d1a] relative overflow-hidden">
+        <div className="flex-1 w-full h-full bg-[#131722] relative overflow-hidden">
             <div id="tradingview_widget_container" ref={containerRef} className="w-full h-full" />
         </div>
     );
