@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Background from '../Background/Background';
-import Clock from '../Clock/Clock';
 import AccessCard from '../Panels/AccessCard';
 import StatusCard from '../StatusPanel/StatusCard';
 import BottomBar from '../Panels/BottomBar';
@@ -10,37 +9,34 @@ import HudOrb from '../AICore/HudOrb';
 import { useOrbState } from '../../hooks/useOrbState';
 import { useSpeech } from '../../hooks/useSpeech';
 import { useFriday } from '../../context/FridayContext';
-import { voiceDebug } from '../../hooks/voiceDebug';
 
 export default function LockScreen() {
     const orb = useOrbState();
-    console.log('[LockScreen] Rendering, locked state:', orb.locked);
-    const { authStep, runAuthSequence, responseMessage, appState, stateLabel, audioEnabled, enableAudioFromGesture, ttsLoading, isSpeaking, locked, unlockWithFingerprintFlow, authenticateWithPassword, adminAuthed, mode, speakText, setResponseMessage } = orb;
+    const { authStep, runAuthSequence, responseMessage, appState, stateLabel, audioEnabled, enableAudioFromGesture, ttsLoading, isSpeaking, locked, unlockWithFingerprintFlow, setResponseMessage, setWorkspace } = orb;
     const { micEnabled } = useFriday();
 
-    // FRIDAY's conversation loop: when the brain returns a reply for free-form
-    // speech, show it, speak it, and run any structured action it decided on.
+    // FRIDAY's conversation loop: when the brain returns a reply for free-form speech,
+    // show it and let useSpeech handle playing the voice (so voice is never duplicated).
     const handleConversation = React.useCallback(({ reply, action }) => {
         if (reply) {
             setResponseMessage?.(reply);
-            speakText?.(reply);
         }
         if (action && action !== 'none') {
-            runAuthSequence?.(action);
+            if (action === 'trading') setWorkspace?.('trading');
+            else if (action === 'dashboard') setWorkspace?.('dashboard');
+            else runAuthSequence?.(action);
         }
-    }, [runAuthSequence, speakText, setResponseMessage]);
+    }, [runAuthSequence, setResponseMessage, setWorkspace]);
 
-    // Handle fingerprint unlock with proper UI state management
+    // Handle fingerprint unlock
     const [fingerprintState, setFingerprintState] = useState('idle');
     const [fingerprintError, setFingerprintError] = useState('');
 
     const handleFingerprintClick = async () => {
-        console.log('[Fingerprint] Button clicked');
         setFingerprintState('pending');
         setFingerprintError('');
         try {
             const result = await unlockWithFingerprintFlow();
-            console.log('[Fingerprint] Unlock result:', result);
             if (result.ok) {
                 setFingerprintState('success');
             } else {
@@ -48,14 +44,17 @@ export default function LockScreen() {
                 setFingerprintError(result.error || result.reason || 'Failed');
             }
         } catch (err) {
-            console.error('[Fingerprint] Exception:', err);
             setFingerprintState('error');
             setFingerprintError('exception');
         }
     };
 
     useSpeech({
-        onCommand: runAuthSequence,
+        onCommand: (cmd) => {
+            if (cmd === 'trading') setWorkspace?.('trading');
+            else if (cmd === 'dashboard') setWorkspace?.('dashboard');
+            else runAuthSequence?.(cmd);
+        },
         onConversation: handleConversation,
         enabled: micEnabled,
     });
@@ -144,21 +143,11 @@ export default function LockScreen() {
                             )}
                         </AnimatePresence>
 
-                        {responseMessage && appState === 'SPEAKING' ? (
+                        {responseMessage && (
                             <div className="mt-3 text-[11px] text-[#DFFAFF] font-grotesk tracking-[0.08em] uppercase drop-shadow-[0_0_6px_#00D9FF]">
                                 {responseMessage}
                             </div>
-                        ) : null}
-
-                        <div className="mt-3 flex items-center justify-center gap-3">
-                            <button
-                                onClick={() => runAuthSequence('wake', { speakImmediately: true })}
-                                className="px-3 py-2 rounded bg-[#00B7FF]/10 border border-[#00B7FF]/30 text-[#00D9FF] text-[10px] uppercase"
-                                style={{ pointerEvents: 'auto' }}
-                            >
-                                Test Response
-                            </button>
-                        </div>
+                        )}
 
                         {ttsLoading ? (
                             <div className="mt-3 text-[11px] text-[#DFFAFF] font-grotesk tracking-[0.08em] uppercase drop-shadow-[0_0_6px_#00D9FF]">
@@ -252,25 +241,6 @@ export default function LockScreen() {
                     </div>
                 </div>
             ) : null}
-
-            {/* Floating debug trigger (clickable even if other overlays disable pointer events) */}
-            <div style={{ position: 'fixed', top: 18, right: 18, zIndex: 60, pointerEvents: 'auto' }}>
-                {/* Test voice response button */}
-                <button
-                    onClick={() => runAuthSequence('wake', { speakImmediately: true })}
-                    className="px-3 py-2 rounded bg-[#FF6B6B]/20 border border-[#FF6B6B]/40 text-[#FF6B6B] text-[11px] uppercase"
-                >
-                    Test Voice Response
-                </button>
-                <br />
-                {/* Fingerprint test button */}
-                <button
-                    onClick={handleFingerprintClick}
-                    className="px-3 py-2 rounded bg-[#00B7FF]/20 border border-[#00B7FF]/40 text-[#00D9FF] text-[11px] uppercase"
-                >
-                    Test Fingerprint
-                </button>
-            </div>
 
             <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 30 }}>
                 <Corners />
