@@ -18,7 +18,25 @@ const WAKE_WORDS = [
 ];
 
 /**
- * Returns the command text.
+ * Strips out any wake-word (like "hey friday", "friday", etc.) from anywhere in the transcript.
+ * Sends ONLY the clean actual query to FRIDAY's AI brain!
+ */
+function cleanQuery(transcript) {
+  if (!transcript) return '';
+  let cleaned = transcript.trim();
+
+  // Strip wake word phrases case-insensitively
+  for (const wakeWord of WAKE_WORDS) {
+    const reg = new RegExp(wakeWord, 'gi');
+    cleaned = cleaned.replace(reg, '');
+  }
+
+  // Clean remaining leading/trailing punctuation and whitespace
+  return cleaned.replace(/^[\s,.\-?]+|[\s,.\-?]+$/g, '').trim();
+}
+
+/**
+ * Returns the extracted clean query.
  */
 function extractCommand(transcript, locked) {
   if (!transcript) return null;
@@ -26,17 +44,17 @@ function extractCommand(transcript, locked) {
 
   const sortedWords = WAKE_WORDS.slice().sort((a, b) => b.length - a.length);
 
-  for (const wakeWord of sortedWords) {
-    const index = t.indexOf(wakeWord);
-    if (index !== -1) {
-      const after = t.substring(index + wakeWord.length).replace(/^[\s,.\-?]+/, '').trim();
-      return after || 'hello';
-    }
+  // Check if wake-word exists in transcript
+  const hasWakeWord = sortedWords.some(w => t.includes(w));
+
+  if (hasWakeWord) {
+    const cleaned = cleanQuery(transcript);
+    return cleaned || 'hello';
   }
 
-  // Once unlocked, allow direct questions/talking even without repeating "hey friday"
+  // Once unlocked, allow direct questions without requiring wake word
   if (!locked && t.length > 2) {
-    return t;
+    return cleanQuery(transcript) || t;
   }
 
   return null;
@@ -75,19 +93,16 @@ export function useSpeech({ onCommand, onConversation, enabled = true, locked = 
         const text = result[0].transcript.trim();
         if (!text) return;
 
-        console.log('[Voice] Speech recognized:', text);
+        console.log('[Voice] Raw speech recognized:', text);
         const cmd = extractCommand(text, lockedRef.current);
         if (cmd) {
-          console.log('[Voice] Processing query:', cmd);
+          console.log('[Voice] Clean query sent to AI (wake-word removed):', cmd);
           handleCmd(cmd);
         }
       };
 
       rec.onerror = (e) => {
-        // Silently handle expected events like 'no-speech' or 'aborted' without rapid log spamming/restarts
-        if (e.error === 'no-speech' || e.error === 'aborted') {
-          return;
-        }
+        if (e.error === 'no-speech' || e.error === 'aborted') return;
         console.warn('[Voice] Speech error:', e.error);
         if (!cancelled && activeRef.current) {
           setTimeout(start, 500);
