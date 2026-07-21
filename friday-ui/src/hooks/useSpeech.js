@@ -61,7 +61,10 @@ export function useSpeech({ isLocked, onCommand, onConversation }) {
         console.log('[Voice] Raw speech recognized:', rawTranscript);
 
         let query = rawTranscript.trim();
-        query = query.replace(/^(hey friday|friday)\s*/i, '').trim();
+        // Comprehensive regex to strip variations like "he friday", "hey friday", "hi friday", "ok friday", "friday"
+        query = query.replace(/^(?:he|hey|hi|hello|ok|okay)\s+friday\b\s*/i, '')
+                     .replace(/^friday\b\s*/i, '')
+                     .trim();
 
         if (query.length > 0) {
           console.log('[Voice] Clean query sent to AI (wake-word removed):', query);
