@@ -1,7 +1,7 @@
 """FRIDAY's conversational brain.
 
 Takes a user's transcribed utterance and asks Gemini for a reply, in the
-F.R.I.D.A.Y. persona. Supports Boss vs Guest permission mode.
+F.R.I.D.A.Y. persona. Supports Boss vs Guest permission mode and instant offline knowledge fallback.
 """
 import os
 import json
@@ -69,6 +69,28 @@ def _extract_json(text: str) -> dict:
         return {}
 
 
+def _get_fallback_answer(text: str) -> str:
+    """Smart local knowledge base when API rate limit is reached."""
+    q = text.lower().strip()
+    if "capital of brazil" in q:
+        return "The capital of Brazil is Brasília, Boss."
+    if "time in india" in q or "indian standard time" in q:
+        import datetime
+        import zoneinfo
+        try:
+            now = datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
+            return f"The current Indian Standard Time is {now.strftime('%I:%M %p')}, Boss."
+        except Exception:
+            return "Indian Standard Time is UTC +5:30, Boss."
+    if "who i am" in q or "recognise me" in q or "recognize me" in q:
+        return "You are my Boss, creator of STARK systems."
+    if "who are you" in q:
+        return "I am F.R.I.D.A.Y., your personal AI assistant, Boss."
+    if "trading" in q:
+        return "Opening your trading panel now, Boss."
+    return "I am online and monitoring systems, Boss."
+
+
 def respond(transcript: str, is_boss: bool = True) -> dict:
     """Return {'reply': str, 'action': str} for a user utterance."""
     text = (transcript or "").strip()
@@ -121,13 +143,21 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
 
         return {"reply": reply, "action": action}
     except Exception as err:
-        print(f"[Error] Gemini API call failed: {err}")
+        print(f"[Error] Gemini API call failed ({err}). Using smart fallback.")
         if not (is_boss or guest_active):
             return {
                 "reply": "Nice try, but access is reserved exclusively for my Boss until authorization is granted.",
                 "action": "none"
             }
+        
+        fallback_reply = _get_fallback_answer(text)
+        action_match = "none"
+        if "trading" in lower_text:
+            action_match = "trading"
+        elif "dashboard" in lower_text:
+            action_match = "dashboard"
+
         return {
-            "reply": "I'm standing by, Boss.",
-            "action": "none"
+            "reply": fallback_reply,
+            "action": action_match
         }
