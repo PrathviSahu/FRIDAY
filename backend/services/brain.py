@@ -204,9 +204,9 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "previous_track"}
 
-        # 3. UNPAUSE / RESUME SHORTCUT (English + Hinglish: chalao, bajao, shuru karo)
-        if re.search(r'\b(?:unpause|resume)\b|\b(?:gaana\s+chalao|music\s+chalao|gaana\s+bajao|shuru\s+karo)\b', lower_text):
-            execute_system_command("play_music", "")
+        # 3. UNPAUSE / RESUME SHORTCUT (English + Hinglish: play music, play the music, resume, chalao, bajao, shuru karo)
+        if re.search(r'\b(?:unpause|resume|play\s+music|play\s+the\s+music|play\s+spotify|start\s+music|start\s+playing)\b|\b(?:gaana\s+chalao|music\s+chalao|gaana\s+bajao|shuru\s+karo)\b', lower_text):
+            execute_system_command("play_music", "", volume_percent=extracted_vol)
             reply_msg = "Resuming Spotify music, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "play_music"}
@@ -260,7 +260,7 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
         if play_match:
             raw_song = play_match.group(1)
             cleaned_song = re.sub(r'\s*on spotify\s*$', '', raw_song).strip()
-            if cleaned_song and cleaned_song not in ["music", "spotify", "playlist", "hindi", "english", "volume", "sound", "it", "this", "next", "next song", "next track", "previous", "previous song", "previous track"]:
+            if cleaned_song and cleaned_song not in ["music", "the music", "some music", "my music", "spotify", "playlist", "hindi", "english", "volume", "sound", "it", "this", "next", "next song", "next track", "previous", "previous song", "previous track"]:
                 execute_system_command("play_specific", cleaned_song, volume_percent=extracted_vol)
                 msg = f"Opening Spotify and playing '{cleaned_song}', Prem."
                 log_conversation(role="assistant", message=msg)
