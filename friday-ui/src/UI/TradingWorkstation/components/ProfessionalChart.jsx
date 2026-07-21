@@ -38,7 +38,8 @@ export default function ProfessionalChart({ symbol = 'OANDA:XAUUSD' }) {
             backgroundColor: '#0a0f1d',
             gridColor: 'rgba(56, 189, 248, 0.15)',
             disabled_features: [
-                'trading_notifications'
+                'trading_notifications',
+                'widget_bar'
             ],
             enabled_features: [
                 'header_widget',
