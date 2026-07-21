@@ -26,7 +26,7 @@ from services.memory import (
     log_conversation,
     get_recent_conversation
 )
-from services.system_control import execute_system_command, get_spotify_current_track, add_current_track_to_playlist, take_screenshot
+from services.system_control import execute_system_command, get_spotify_current_track, add_current_track_to_playlist, take_screenshot, close_app
 from services.todos import get_todos, add_todo
 from services.weather import get_weather
 from services.reminders import add_reminder, check_due_reminders
@@ -275,6 +275,13 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
             reply_msg = "Exiting trading mode, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "dashboard"}
+
+        # Close Spotify & App Shortcuts (English + Hinglish: close spotify, quit spotify, band karo spotify)
+        if re.search(r'\b(?:close|quit|stop|exit|band\s+karo)\s+(?:the\s+)?spotify\b|\bspotify\s+(?:close|quit|band\s+karo)\b', lower_text):
+            close_app("Spotify")
+            reply_msg = "Closing Spotify, Prem."
+            log_conversation(role="assistant", message=reply_msg)
+            return {"reply": reply_msg, "action": "close_spotify"}
 
         if re.search(r'\b(?:screenshot|screen\s+shot|capture\s+screen)\b', lower_text):
             path = take_screenshot()
