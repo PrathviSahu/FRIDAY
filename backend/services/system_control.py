@@ -104,28 +104,40 @@ def close_app(app_name: str) -> bool:
 
 
 def search_and_play_spotify(song_or_playlist: str) -> bool:
-    """Search for a specific song or playlist on Spotify and immediately play top result."""
+    """Search for a specific song on Spotify and immediately play it.
+    Uses Spotify URL scheme to open search results, then Tab+Enter to play top track result.
+    """
     if not IS_MAC or not song_or_playlist:
         return False
-    try:
-        q_clean = song_or_playlist.strip().replace('"', '')
-        
-        # Cmd+L focuses Spotify Search Bar directly -> Type song -> Down Arrow -> Enter plays #1 top result track
-        script = f'''
-        tell application "Spotify" to activate
-        delay 0.4
-        tell application "System Events"
-            tell process "Spotify"
-                keystroke "l" using {{command down}}
-                delay 0.4
-                keystroke "{q_clean}"
-                delay 0.8
-                key code 125
-                delay 0.3
-                key code 36
-            end tell
+
+    q_clean = song_or_playlist.strip().replace('"', '').replace("'", "")
+    q_encoded = urllib.parse.quote(q_clean)
+
+    # Strategy: open spotify:search: URL to navigate to search results page,
+    # then use Tab key to focus first result card (Top Result) and Enter to play it.
+    script = f'''
+    -- Open search in Spotify
+    tell application "Spotify" to activate
+    delay 0.3
+    tell application "System Events"
+        tell process "Spotify"
+            keystroke "l" using {{command down}}
+            delay 0.3
+            -- Clear existing text and type new query
+            keystroke "a" using {{command down}}
+            delay 0.1
+            keystroke "{q_clean}"
+            delay 1.5
+            -- Navigate to first result in dropdown and play it
+            key code 125
+            delay 0.2
+            key code 125
+            delay 0.2
+            key code 36
         end tell
-        '''
+    end tell
+    '''
+    try:
         subprocess.Popen(["osascript", "-e", script])
         return True
     except Exception as err:
