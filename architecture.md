@@ -1,24 +1,30 @@
 # Friday Project Architecture Overview
 
 **Document purpose**  
-This file describes the high-level architecture of the *Friday* desktop assistant project, covering its major components, data flows, technology choices, persistent services, draggable HUD widgets, and active Spotify/System automation integrations.
+This file describes the high-level architecture of the *Friday* desktop assistant project, covering its major components, data flows, technology choices, persistent services, draggable HUD widgets, active Spotify/System automation integrations, and the **F.R.I.D.A.Y. Personal Trading Station**.
 
 ---
 
 ## 1. Project Vision
 Friday is a personal AI assistant built for **Prem** (Prathvi Sahu) that:
-- Listens continuously for voice wake-words (e.g., "Friday", "Hey Friday", "Suno Friday") and WebAuthn fingerprint authentication.
-- Executes system automation on macOS (app control, smart volume routing, background Spotify track/playlist control, YouTube & web search, weather queries, voice-to-todo).
-- Features a **Floating Draggable Widget Ecosystem (Minimized by Default)**:
-  - 🎵 **Spotify Card**: Spotify dark-glass UI, real album poster art via AppleScript, shuffle/repeat/play controls, clickable progress scrubber bar, and instantaneous song search line.
-  - 📋 **Todo Card**: Persistent task manager with priority tags (High/Normal/Low), status filter tabs, inline double-click editing, progress tracking, and voice-to-todo task insertion.
+- **Global Wake-Word Gate & Voice Interruption**:
+  - Listens continuously for voice wake-words (`"Friday"`, `"Hey Friday"`, `"Suno Friday"`) and enforces a strict gate ignoring ambient noise so queries are only sent to Groq when explicitly addressed.
+  - **Instant Speech Interruption**: Saying `"Friday ..."` while FRIDAY is speaking immediately cancels current speech playback (`stopSpeaking()`) so she listens to the new command.
+- **F.R.I.D.A.Y. Personal Trading Station**:
+  - Full-viewport real-time TradingView charting engine (`tv.js`) with custom Cyber-Grid overlay and pane gridlines.
+  - Dedicated **Custom Watchlist Panel** on the right featuring **Forex & Crypto** and **Indian Market 🇮🇳** tabs.
+  - Full **`+ Add Symbol`** modal and hover **`🗑️ Delete`** icon with persistent `localStorage` saving.
+  - Complete **Native Timeframe Toolbar** (`1m`, `3m`, `5m`, `15m`, `30m`, `1h`, `2h`, `4h`, `D`, `W`), technical indicators, chart types, and drawing tools.
+  - **Right-Click Context Menu**: Triggers Chart & Fib Customizer for candle body/wick colors and Fibonacci retracements.
+  - **Trading Sleep Mode**: While in Trading Mode, background speech is ignored, and HUD widgets (CPU Monitor, AI Search, Weather Card) are hidden to maintain a distraction-free trading view.
+- **Executes macOS Automation**:
+  - App control (open/close Spotify, browsers, terminal), volume control, background Spotify track/playlist control, weather queries, and voice-to-todo.
+- **Floating Draggable Widget Ecosystem (Minimized by Default)**:
+  - 🎵 **Spotify Card**: Dark-glass UI, real album art, real-time playback position & duration, click-to-seek progress bar (`/api/spotify/seek`), volume slider, song search line, and background macOS `osascript` control.
+  - 📋 **Todo Card**: Persistent task manager with priority tags (High/Normal/Low), status filter tabs, inline editing, progress tracking, and voice-to-todo.
   - ⚡ **System Monitor HUD**: Real-time macOS CPU %, RAM GB/%, SSD Disk %, and Battery/Power status telemetry via `psutil`.
-  - 🌤️ **Weather Card**: Live real-time weather data (temperature, condition, humidity, wind, high/low) via Open-Meteo API with IP auto-location and global city voice search.
-  - 📌 **Draggable Minimized Pills**: All 4 cards start minimized as sleek, draggable pills (`cursor-grab` / `cursor-grabbing`) placed around screen edges.
-- Uses a dual-engine hybrid AI (Groq Llama 3.3 70B primary for ~150ms responses + Gemini 2.5 failover).
-- Features **Smarter Context & Proactive Suggestion Engine**:
-  - Injects live track state, pending todos, time-of-day context (morning/afternoon/night), and persistent song memory into LLM prompts.
-  - Periodically (every 30 mins) evaluates time & context to announce proactive voice suggestions with a sleek glass toast UI notification.
+  - 🌤️ **Weather Card**: Live real-time weather data via Open-Meteo API with IP auto-location and global city voice search.
+- Dual-engine hybrid AI (Groq Llama 3.3 70B primary for ~150ms responses + Gemini 2.5 failover).
 
 ---
 
@@ -29,21 +35,23 @@ Friday is a personal AI assistant built for **Prem** (Prathvi Sahu) that:
 |  React 18 Frontend  | <---------------------------> |  FastAPI Python Backend |
 |  (friday-ui)        |  POST /api/chat/text          |  (backend/app.py :8000) |
 |  - useSpeech Hook   |  GET  /api/spotify/current-tr |                         |
-|  - Draggable Pills  |  GET/POST/DELETE /api/todos   +-------------------------+
-|    * SpotifyCard    |  GET  /api/system/stats              /     |     \
-|    * TodoCard       |  GET  /api/weather                  /      |      \
-|    * SystemHUD      |  GET  /api/proactive               v       v       v
-|    * WeatherCard    |                               [ Fast-Path ] [ Services ] [ Dual-Engine LLM ]
-+---------------------+                               Shortcuts     - todos.py   - Groq 70B (150ms)
-                                                          |         - stats.py   - Gemini 2.5
-                                                          v         - weather.py
-                                                  [ system_control.py ]
-                                                    (macOS AppleScript)
-                                                    /                 \
-                                          [ Spotify App ]        [ macOS System ]
-                                          - Direct URIs          - Output Volume
-                                          - Background Control   - App Management
-                                          - Album Artwork URL    - Telemetry (psutil)
+|  - TradingStation   |  POST /api/spotify/seek       +-------------------------+
+|  - Draggable Pills  |  GET/POST/DELETE /api/todos          /     |     \
+|    * SpotifyCard    |  GET  /api/system/stats              /      |      \
+|    * TodoCard       |  GET  /api/weather                  v       v       v
+|    * SystemHUD      |  GET  /api/proactive               [ Fast-Path ] [ Services ] [ Dual-Engine LLM ]
+|    * WeatherCard    |                               Shortcuts     - todos.py   - Groq 70B (150ms)
++---------------------+                               - Trading     - stats.py   - Gemini 2.5
+                                                      - Spotify     - weather.py
+                                                           |
+                                                           v
+                                                   [ system_control.py ]
+                                                     (macOS AppleScript)
+                                                     /                 \
+                                           [ Spotify App ]        [ macOS System ]
+                                           - Position / Duration  - Output Volume
+                                           - Background Control   - App Management (Close)
+                                           - Album Artwork URL    - Telemetry (psutil)
 ```
 
 ---
@@ -52,18 +60,14 @@ Friday is a personal AI assistant built for **Prem** (Prathvi Sahu) that:
 
 | Layer | Technology | Rationale |
 |-------|------------|-----------|
-| **UI** | React 18 + Vite + Tailwind CSS + Framer Motion | Fast dev experience, modular UI, draggable interactive HUD widgets (minimized by default). |
-| **Voice STT** | Web Speech API (`en-US`) | Browser-native STT with exponential backoff on `no-speech` errors. |
-| **Hooks** | `useSpeech.js`, `useProactiveSuggestions.js`, `useOrbState.jsx` | Encapsulates speech lifecycle, proactive scheduling, mic mute state, and TTS echo guards. |
-| **Backend API** | Python 3.11 + FastAPI + Uvicorn | High-performance asynchronous API server running at `http://localhost:8000`. |
-| **Primary LLM** | Groq (`llama-3.3-70b-versatile`) | Ultra-fast (~150ms) intent extraction, natural conversational replies, and voice-to-todo. |
+| **UI Framework** | React 18 + Vite + Tailwind CSS + Framer Motion | Fast dev experience, modular UI, draggable HUD widgets, and full-viewport Personal Trading Station. |
+| **Trading Engine** | TradingView Widget (`tv.js`) | Native real-time market streams, drawing tools, timeframes (`1m` to `W`), and customizable theme properties. |
+| **Voice STT & Gate** | Web Speech API + Wake-Word Gate | Continuous listening with mandatory wake-word gate (`"Friday"`) and instant speech interruption (`stopSpeaking()`). |
+| **Backend API** | Python 3.11 + FastAPI + Uvicorn | Asynchronous high-performance API server running at `http://localhost:8000`. |
+| **Primary LLM** | Groq (`llama-3.3-70b-versatile`) | Ultra-fast (~150ms) intent extraction, conversational replies, and voice shortcuts. |
 | **Failover LLM** | Google Gemini 2.5 | Heavy reasoning and fallback handling if primary LLM fails. |
 | **TTS Engine** | Edge-TTS (Microsoft Neural Voices) | Natural British female voice output with Web Speech API browser fallback. |
-| **OS Automation** | Python `subprocess` + macOS AppleScript (`osascript`) | Native macOS control over Spotify, apps, browser URLs, and system volume. |
-| **Weather API** | Open-Meteo & ip-api | Free live weather telemetry & geocoding without API keys. |
-| **System Telemetry** | `psutil` | Live macOS CPU %, RAM %, Disk %, and Battery metrics. |
-| **Persistence** | JSON File Storage (`data/todos.json`, `data/memory.json`) | Persistent lightweight data storage surviving server restarts. |
-| **Security** | WebAuthn Platform Authenticator | Biometric fingerprint gate for LockScreen unlock. |
+| **OS Automation** | Python `subprocess` + macOS AppleScript (`osascript`) | Native macOS control over Spotify, apps, browser URLs, volume, and playback seek. |
 
 ---
 
@@ -74,9 +78,13 @@ Friday is a personal AI assistant built for **Prem** (Prathvi Sahu) that:
 ├── friday-ui/                         # React Frontend (Vite)
 │   ├── src/
 │   │   ├── api/                      # fetchChatText.ts API client
-│   │   ├── components/               # LockScreen, Panels (SpotifyCard, TodoCard, SystemMonitorCard, WeatherCard), Debug
+│   │   ├── components/               # LockScreen, Panels (SpotifyCard, TodoCard, SystemMonitorCard, WeatherCard)
 │   │   ├── context/                  # FridayContext, FridaySync
 │   │   ├── hooks/                    # useSpeech.js, useProactiveSuggestions.js, useOrbState.jsx, voiceCommands.js
+│   │   ├── UI/
+│   │   │   └── TradingWorkstation/   # F.R.I.D.A.Y. Personal Trading Station
+│   │   │       ├── QuantumTradingWorkstation.jsx
+│   │   │       └── components/       # ProfessionalChart.jsx, Watchlist.jsx (Forex & Indian Market 🇮🇳)
 │   │   └── services/                 # ttsService.js
 │   └── package.json
 │
@@ -84,11 +92,11 @@ Friday is a personal AI assistant built for **Prem** (Prathvi Sahu) that:
 │   ├── app.py                        # Main FastAPI server (:8000)
 │   ├── data/                         # Persistent JSON storage (todos.json, memory.json)
 │   ├── services/
-│   │   ├── brain.py                  # Groq/Gemini LLM engine + Fast-path shortcuts + Proactive engine + Voice-to-todo + Weather intent
-│   │   ├── system_control.py         # macOS AppleScript system & Spotify automation + Artwork URL
+│   │   ├── brain.py                  # Groq/Gemini LLM engine + Fast-path shortcuts + Proactive engine + Voice-to-todo
+│   │   ├── system_control.py         # macOS AppleScript system & Spotify automation + Seek + Position/Duration
 │   │   ├── todos.py                  # Persistent Todo CRUD service
 │   │   ├── system_stats.py           # psutil telemetry service (CPU, RAM, Disk, Battery)
-│   │   ├── weather.py                # Open-Meteo weather service + IP geolocation + city geocoding
+│   │   ├── weather.py                # Open-Meteo weather service + IP geolocation
 │   │   ├── memory.py                 # Permanent memory & preference storage
 │   │   └── voice_auth.py             # Boss / Guest permission gating
 │   └── requirements.txt
@@ -103,7 +111,8 @@ Friday is a personal AI assistant built for **Prem** (Prathvi Sahu) that:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/chat/text` | Main voice/text AI brain endpoint (supports `silence_tts`, voice-to-todo & weather intent) |
-| GET | `/api/spotify/current-track` | Active track details (title, artist, album, state, artwork_url) |
+| GET | `/api/spotify/current-track` | Active track details (title, artist, album, state, artwork_url, position, duration) |
+| POST | `/api/spotify/seek` | Seek to specific playback timestamp in seconds |
 | GET | `/api/weather` | Live weather data (temp, condition, humidity, wind, city) |
 | GET | `/api/todos` | Fetch all stored todo items |
 | POST | `/api/todos` | Create a new todo item |
