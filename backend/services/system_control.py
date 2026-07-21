@@ -141,8 +141,8 @@ def search_and_play_spotify(song_or_playlist: str) -> bool:
         return False
 
 # Boss's actual Spotify playlists — direct URIs for instant reliable playback
-PLAYLIST_HINDI  = "spotify:playlist:4SuEAsJ6ulS62RYJk88Sap"
-PLAYLIST_ENGLISH = "spotify:playlist:4SuEAsJ6ulS62RYJk88Sap"  # update when English playlist URL given
+PLAYLIST_HINDI   = "spotify:playlist:4SuEAsJ6ulS62RYJk88Sap"
+PLAYLIST_ENGLISH = "spotify:playlist:2CCKzQqgsc50gtJeYDonJh"
 
 
 def play_spotify_uri(uri: str) -> bool:
