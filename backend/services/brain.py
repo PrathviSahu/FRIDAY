@@ -197,7 +197,7 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
             return {"reply": reply_msg, "action": "play_music"}
 
         # 4. PAUSE / STOP MUSIC SHORTCUT
-        if re.search(r'\b(?:pause|stop music|hold on)\b', lower_text) or lower_text == "stop":
+        if re.search(r'\b(?:pause|pause music|stop music|stop playing|stop the song|stop the music|hold on)\b', lower_text) or lower_text == "stop":
             execute_system_command("pause_music", "")
             reply_msg = "Pausing Spotify music, Prem."
             log_conversation(role="assistant", message=reply_msg)
@@ -215,6 +215,12 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
             reply_msg = result or "Playing your English playlist, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "play_english_playlist"}
+
+        if re.search(r'\b(?:krishna|radha|radha krishna|radhe krishna|bhajan|devotional)\b', lower_text):
+            result = execute_system_command("play_krishna_playlist", "", volume_percent=extracted_vol)
+            reply_msg = result or "Playing your Krishna playlist, Prem."
+            log_conversation(role="assistant", message=reply_msg)
+            return {"reply": reply_msg, "action": "play_krishna_playlist"}
 
         # 4.6. SHUFFLE SHORTCUT (e.g. "shuffle", "play on shuffle", "turn on shuffle", "play it on shuffel")
         if re.search(r'\b(?:shuffle|shuffel)\b', lower_text):

@@ -143,6 +143,7 @@ def search_and_play_spotify(song_or_playlist: str) -> bool:
 # Boss's actual Spotify playlists — direct URIs for instant reliable playback
 PLAYLIST_HINDI   = "spotify:playlist:4SuEAsJ6ulS62RYJk88Sap"
 PLAYLIST_ENGLISH = "spotify:playlist:2CCKzQqgsc50gtJeYDonJh"
+PLAYLIST_KRISHNA = "spotify:playlist:3Fd9z849SrTBEtHDTgQvXo"
 
 
 def play_spotify_uri(uri: str) -> bool:
@@ -181,7 +182,7 @@ def control_spotify(command: str, query: str = "", volume_percent: int = -1) -> 
                 subprocess.Popen(["osascript", "-e", script])
             return True
 
-        if cmd in ("play_hindi_playlist", "play_english_playlist", "play_specific"):
+        if cmd in ("play_hindi_playlist", "play_english_playlist", "play_krishna_playlist", "play_specific"):
             # These use their own activate logic inside search_and_play_spotify
             if volume_percent >= 0:
                 vol_clamped = max(0, min(100, volume_percent))
@@ -191,6 +192,8 @@ def control_spotify(command: str, query: str = "", volume_percent: int = -1) -> 
                 play_spotify_uri(PLAYLIST_HINDI)
             elif cmd == "play_english_playlist":
                 play_spotify_uri(PLAYLIST_ENGLISH)
+            elif cmd == "play_krishna_playlist":
+                play_spotify_uri(PLAYLIST_KRISHNA)
             else:
                 search_and_play_spotify(query)
             return True
@@ -288,6 +291,10 @@ def execute_system_command(action_type: str, target: str = "", volume_percent: i
     elif action == "play_english_playlist":
         control_spotify("play_english_playlist", volume_percent=volume_percent)
         return "Playing your English playlist, Prem."
+
+    elif action == "play_krishna_playlist":
+        control_spotify("play_krishna_playlist", volume_percent=volume_percent)
+        return "Playing your Krishna playlist, Prem."
 
     elif action == "play_specific":
         control_spotify("play_specific", target_clean, volume_percent=volume_percent)
