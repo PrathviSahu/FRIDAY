@@ -15,6 +15,7 @@ import os
 from services.brain import respond
 from services.tts import generate_speech
 from services.voice_auth import is_guest_permitted, set_guest_permission
+from services.memory import get_all_memories, save_fact
 
 # Ensure temp_audio directory exists
 AUDIO_DIR = Path('temp_audio')
@@ -47,6 +48,11 @@ class PermissionRequest(BaseModel):
     allow: bool
 
 
+class SaveMemoryRequest(BaseModel):
+    key: str
+    value: str
+
+
 @app.get("/")
 def read_root():
     return {
@@ -58,7 +64,7 @@ def read_root():
 
 @app.post("/api/chat/text")
 def chat_text_endpoint(req: ChatTextRequest):
-    """Text-based chat endpoint for FRIDAY AI brain"""
+    """Text-based chat endpoint for FRIDAY AI brain with memory learning"""
     try:
         res = respond(req.text, is_boss=req.is_boss)
         return res
@@ -68,6 +74,19 @@ def chat_text_endpoint(req: ChatTextRequest):
             "reply": "I'm experiencing a temporary neural link issue, Boss. Please check the backend API configuration.",
             "action": "none"
         }
+
+
+@app.get("/api/memory")
+def get_memories_endpoint():
+    """Retrieve all stored long-term memories"""
+    return {"status": "ok", "memories": get_all_memories()}
+
+
+@app.post("/api/memory")
+def save_memory_endpoint(req: SaveMemoryRequest):
+    """Manually add or edit a memory fact"""
+    save_fact(req.key, req.value)
+    return {"status": "ok", "memories": get_all_memories()}
 
 
 @app.post("/api/permission")
