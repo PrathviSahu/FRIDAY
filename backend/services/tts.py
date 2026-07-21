@@ -4,15 +4,27 @@ import uuid
 
 import edge_tts
 
-VOICE_NAME = 'en-GB-SoniaNeural'
+import re
+
+VOICE_ENGLISH = 'en-GB-SoniaNeural'
+VOICE_HINDI   = 'hi-IN-SwaraNeural'
 
 
-async def generate_speech(text: str, output_dir: Path) -> Path:
+async def generate_speech(text: str, output_dir: Path, voice: str = None) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     filename = f'{uuid.uuid4().hex}.mp3'
     target_file = output_dir / filename
 
-    communicate = edge_tts.Communicate(text, VOICE_NAME)
+    # Auto-detect voice if not explicitly provided: use Hindi neural voice if Devanagari characters present
+    if not voice:
+        if re.search(r'[\u0900-\u097F]', text):
+            selected_voice = VOICE_HINDI
+        else:
+            selected_voice = VOICE_ENGLISH
+    else:
+        selected_voice = voice
+
+    communicate = edge_tts.Communicate(text, selected_voice)
     # open file synchronously and write chunks as they arrive from the async stream
     with target_file.open('wb') as audio_file:
         async for chunk in communicate.stream():

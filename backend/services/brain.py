@@ -40,6 +40,9 @@ KNOWN_ACTIONS = [
 _BOSS_BASE_PROMPT = (
     "You are F.R.I.D.A.Y., Tony Stark's witty, loyal, highly intelligent AI assistant with PC & Spotify media control access. "
     "You address the user exclusively as 'Prem'. Keep spoken replies concise (1-2 sentences), confident, and witty. "
+    "LANGUAGE INSTRUCTION: Understand both English and Hinglish (Hindi written in Roman script, e.g. 'kaise ho Prem', 'gaana bajao'). "
+    "If the user speaks Hinglish or Hindi, reply in natural, friendly Roman-script Hinglish (e.g. 'Bilkul Prem, gaana shuru kar rahi hu!'). "
+    "If the user speaks English, reply in English. "
     "CRITICAL SPEECH-TO-TEXT FUZZY RECOVERY RULES: "
     "Browser STT often mishears words phonetically when the user speaks! "
     "Examples of STT misinterpretations: "
@@ -174,37 +177,49 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "set_volume"}
 
-        # FIX #3: Use regex patterns for volume to avoid 'turn down for what', 'play louder song' triggering volume commands
-        # 1. VOLUME DOWN SHORTCUT
-        if re.search(r'(?:turn|lower|decrease|bring|take)\s+(?:the\s+)?(?:volume|music|sound|it)\s*(?:down)?|volume\s*down|quieter', lower_text):
+        # 1. VOLUME DOWN SHORTCUT (English + Hinglish: awaaz kam, volume kam, dheere karo)
+        if re.search(r'(?:turn|lower|decrease|bring|take)\s+(?:the\s+)?(?:volume|music|sound|it)\s*(?:down)?|volume\s*down|quieter|\b(?:awaaz\s+kam|volume\s+kam|dheere\s+karo|dheere)\b', lower_text):
             result = execute_system_command("volume_down", "")
             reply_msg = result or "Decreasing volume, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "volume_down"}
 
-        # 2. VOLUME UP SHORTCUT
-        if re.search(r'(?:turn|raise|increase|bring|take)\s+(?:the\s+)?(?:volume|music|sound|it)\s*(?:up)?|volume\s*up|louder', lower_text):
+        # 2. VOLUME UP SHORTCUT (English + Hinglish: awaaz badhao, volume badhao, tez karo)
+        if re.search(r'(?:turn|raise|increase|bring|take)\s+(?:the\s+)?(?:volume|music|sound|it)\s*(?:up)?|volume\s*up|louder|\b(?:awaaz\s+badhao|volume\s+badhao|tez\s+karo|unche\s+karo)\b', lower_text):
             result = execute_system_command("volume_up", "")
             reply_msg = result or "Increasing volume, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "volume_up"}
 
-        # 3. UNPAUSE / RESUME SHORTCUT
-        if re.search(r'\b(?:unpause|resume)\b', lower_text):
+        # 2.5. NEXT TRACK / PREVIOUS TRACK SHORTCUTS (English + Hinglish: agla gaana, pichhla gaana)
+        if re.search(r'\b(?:next|skip|play next|next song|next track)\b|\b(?:agla\s+gaana|agla\s+song|agla)\b', lower_text):
+            execute_system_command("next_track", "")
+            reply_msg = "Skipping to the next track, Prem."
+            log_conversation(role="assistant", message=reply_msg)
+            return {"reply": reply_msg, "action": "next_track"}
+
+        if re.search(r'\b(?:previous|prev|previous song|previous track|play previous|go back)\b|\b(?:pichhla\s+gaana|purana\s+gaana|pichhla)\b', lower_text):
+            execute_system_command("previous_track", "")
+            reply_msg = "Playing the previous track, Prem."
+            log_conversation(role="assistant", message=reply_msg)
+            return {"reply": reply_msg, "action": "previous_track"}
+
+        # 3. UNPAUSE / RESUME SHORTCUT (English + Hinglish: chalao, bajao, shuru karo)
+        if re.search(r'\b(?:unpause|resume)\b|\b(?:gaana\s+chalao|music\s+chalao|gaana\s+bajao|shuru\s+karo)\b', lower_text):
             execute_system_command("play_music", "")
             reply_msg = "Resuming Spotify music, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "play_music"}
 
-        # 4. PAUSE / STOP MUSIC SHORTCUT
-        if re.search(r'\b(?:pause|pause music|stop music|stop playing|stop the song|stop the music|hold on)\b', lower_text) or lower_text == "stop":
+        # 4. PAUSE / STOP MUSIC SHORTCUT (English + Hinglish: band karo, roko, ruk jao)
+        if re.search(r'\b(?:pause|pause music|stop music|stop playing|stop the song|stop the music|hold on)\b|\b(?:band\s+karo|gaana\s+roko|roko|ruk\s+jao|gaana\s+band)\b', lower_text) or lower_text in ["stop", "band"]:
             execute_system_command("pause_music", "")
             reply_msg = "Pausing Spotify music, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "pause_music"}
 
         # 4.5. PLAYLIST SHORTCUTS (must come BEFORE generic play-song shortcut)
-        if re.search(r'\b(?:hindi|meri|apni|bollywood)\b.*\b(?:playlist|songs|music)\b|\b(?:playlist|songs|music)\b.*\b(?:hindi|bollywood)\b', lower_text):
+        if re.search(r'\b(?:hindi|meri|apni|bollywood|desi)\b.*\b(?:playlist|songs|music|gaane)\b|\b(?:playlist|songs|music|gaane)\b.*\b(?:hindi|bollywood|desi)\b', lower_text):
             result = execute_system_command("play_hindi_playlist", "", volume_percent=extracted_vol)
             reply_msg = result or "Playing your Hindi playlist, Prem."
             log_conversation(role="assistant", message=reply_msg)
@@ -228,19 +243,6 @@ def respond(transcript: str, is_boss: bool = True) -> dict:
             reply_msg = "Enabling Spotify shuffle mode, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "shuffle"}
-
-        # 4.7. NEXT TRACK / PREVIOUS TRACK SHORTCUTS (must come BEFORE generic play-song shortcut)
-        if re.search(r'\b(?:next|skip|play next|next song|next track)\b', lower_text):
-            execute_system_command("next_track", "")
-            reply_msg = "Skipping to the next track, Prem."
-            log_conversation(role="assistant", message=reply_msg)
-            return {"reply": reply_msg, "action": "next_track"}
-
-        if re.search(r'\b(?:previous|prev|previous song|previous track|play previous|go back)\b', lower_text):
-            execute_system_command("previous_track", "")
-            reply_msg = "Playing the previous track, Prem."
-            log_conversation(role="assistant", message=reply_msg)
-            return {"reply": reply_msg, "action": "previous_track"}
 
         # 5. PHONETIC SONG SHORTCUT
         if any(kw in lower_text for kw in ["tempo city", "help away", "temper city", "temple city"]):

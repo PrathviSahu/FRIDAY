@@ -141,8 +141,8 @@ export function useSpeech({ locked, isLocked, enabled = true, onCommand, onConve
         console.log('[Voice] Raw speech recognized:', rawTranscript);
 
         let query = rawTranscript.trim()
-          .replace(/^(?:if|he|hey|hi|hello|ok|okay)\s+friday\b\s*/i, '')
-          .replace(/^friday\b\s*/i, '')
+          .replace(/^(?:if|he|hey|hi|hello|ok|okay|sun|suno)\s+(?:friday|फ्राइडे|fraide|frida)\b\s*/i, '')
+          .replace(/^(?:friday|फ्राइडे|fraide|frida)\b\s*/i, '')
           .trim();
 
         const normalized = query.toLowerCase();
