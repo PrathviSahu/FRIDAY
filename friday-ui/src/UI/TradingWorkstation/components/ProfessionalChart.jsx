@@ -21,7 +21,7 @@ const FULL_REALTIME_WATCHLIST = [
     'NSE:HDFCBANK',
 ];
 
-export default function ProfessionalChart() {
+export default function ProfessionalChart({ symbol = 'OANDA:XAUUSD' }) {
     const containerRef = useRef(null);
     const [contextMenu, setContextMenu] = useState(null);
     const [showSettings, setShowSettings] = useState(false);
@@ -38,7 +38,7 @@ export default function ProfessionalChart() {
 
         new window.TradingView.widget({
             autosize: true,
-            symbol: 'OANDA:XAUUSD',
+            symbol: symbol,
             interval: '5',
             timezone: 'Asia/Kolkata',
             theme: 'dark',
@@ -104,7 +104,7 @@ export default function ProfessionalChart() {
             initWidget();
         };
         document.head.appendChild(script);
-    }, [upColor, downColor, fibColor, fibExtend]);
+    }, [symbol, upColor, downColor, fibColor, fibExtend]);
 
     const handleContextMenu = (e) => {
         e.preventDefault();
