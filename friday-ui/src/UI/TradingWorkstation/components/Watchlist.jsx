@@ -197,7 +197,11 @@ export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
     });
     // ── Resizable Watchlist Width state (draggable left/right) ─────────────────
     const [watchlistWidth, setWatchlistWidth] = useState(() => {
-        try { return parseInt(localStorage.getItem('friday_watchlist_width') || '300', 10); } catch (_) { return 300; }
+        try {
+            const saved = parseInt(localStorage.getItem('friday_watchlist_width') || '240', 10);
+            const maxSafe = typeof window !== 'undefined' ? Math.min(480, Math.max(200, window.innerWidth - 320)) : 320;
+            return Math.max(160, Math.min(maxSafe, saved));
+        } catch (_) { return 240; }
     });
     const isResizingRef = useRef(false);
 
@@ -210,7 +214,9 @@ export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
         const onMouseMove = (moveEvent) => {
             if (!isResizingRef.current) return;
             const deltaX = startX - moveEvent.clientX; // Left drag increases width
-            const newWidth = Math.max(180, Math.min(550, startWidth + deltaX));
+            // 🛡️ Viewport bound guard: Chart always keeps at least 320px width, Watchlist capped at 480px or max screen space
+            const maxAllowedWidth = Math.max(200, Math.min(480, window.innerWidth - 320));
+            const newWidth = Math.max(160, Math.min(maxAllowedWidth, startWidth + deltaX));
             setWatchlistWidth(newWidth);
             try { localStorage.setItem('friday_watchlist_width', String(newWidth)); } catch (_) {}
         };
@@ -224,6 +230,12 @@ export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
         window.addEventListener('mousemove', onMouseMove);
         window.addEventListener('mouseup', onMouseUp);
     }, [watchlistWidth]);
+
+    const handleDoubleClickResize = () => {
+        const targetWidth = watchlistWidth > 240 ? 200 : 300;
+        setWatchlistWidth(targetWidth);
+        try { localStorage.setItem('friday_watchlist_width', String(targetWidth)); } catch (_) {}
+    };
 
     const [apiLoading, setApiLoading] = useState(false);
     const [draggedIndex, setDraggedIndex] = useState(null);
@@ -422,8 +434,9 @@ export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
             {/* Draggable Resize Divider Handle on Left Edge */}
             <div
                 onMouseDown={handleMouseDownResize}
+                onDoubleClick={handleDoubleClickResize}
                 className="w-2 hover:w-2.5 h-full bg-[#2a2e39]/60 hover:bg-[#2962ff] active:bg-[#2962ff] cursor-col-resize transition-all shrink-0 z-50 flex items-center justify-center group"
-                title="Drag left/right to resize watchlist width"
+                title="Drag left/right to resize watchlist width (Double-click to reset)"
             >
                 <div className="w-0.5 h-10 bg-slate-500/50 group-hover:bg-white rounded-full transition-colors" />
             </div>
