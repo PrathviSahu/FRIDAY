@@ -434,7 +434,18 @@ export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
         const q = searchQuery.trim().toLowerCase();
         const matchesSearch = !q || s.name.toLowerCase().includes(q) || s.full.toLowerCase().includes(q) || s.symbol.toLowerCase().includes(q);
         const matchesCategory = activeCategory === 'all' || s.type === activeCategory;
-       return (
+        return matchesSearch && matchesCategory;
+    });
+
+    const seenSymbols = new Set(localMatches.map(m => m.symbol));
+    const dedupedRemote = remoteResults.filter(r => !seenSymbols.has(r.symbol) && (activeCategory === 'all' || r.type === activeCategory));
+    const searchResults = [...localMatches, ...dedupedRemote];
+
+    const inWatchlist = new Set(watchlistItems.map(i => i.symbol));
+
+    const activeItem = watchlistItems.find(i => i.symbol === currentSymbol) || watchlistItems[0] || DEFAULT_WATCHLIST_ITEMS[0];
+
+    return (
         <div className="flex h-full select-none font-sans z-30 shadow-2xl overflow-hidden bg-[#131722] text-[#d1d4dc] shrink-0 max-w-[45vw]">
             {isOpen && (
                 <>
