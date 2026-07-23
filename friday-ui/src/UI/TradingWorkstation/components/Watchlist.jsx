@@ -670,14 +670,6 @@ export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
                         title={isOpen ? 'Close Watchlist (Hide Panel)' : 'Open Watchlist Panel'}
                     >
                         <Clock size={18} />
-                    </button>          </div>
-            </div>
-
-            {/* TradingView Rightmost Vertical Icon Bar */}
-            <div className="w-[45px] bg-[#131722] border-l border-[#2a2e39] flex flex-col items-center justify-between py-3 text-slate-400 shrink-0">
-                <div className="flex flex-col items-center gap-5">
-                    <button className="p-2 rounded hover:bg-[#1e222d] text-[#2962ff] transition-all cursor-pointer" title="Watchlist and details">
-                        <Clock size={18} />
                     </button>
                     <button className="p-2 rounded hover:bg-[#1e222d] hover:text-slate-200 transition-all cursor-pointer" title="Object tree">
                         <Layers size={18} />
