@@ -181,25 +181,25 @@ export default function QuantumTradingWorkstation({ isMinimized = false, onMinim
             className="fixed inset-0 z-50 flex flex-col bg-[#131722] text-[#d1d4dc] font-sans select-none overflow-hidden"
         >
             {/* Authentic TradingView Top Header Bar */}
-            <header className="h-13 bg-[#1e222d] border-b border-[#2a2e39] px-4 flex items-center justify-between z-40">
+            <header className="h-12 bg-[#1e222d] border-b border-[#2a2e39] px-3 flex items-center justify-between z-40 w-full min-w-0 max-w-full overflow-hidden shrink-0">
                 {/* Left Controls: Symbol Search Button + Timeframe Selector */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 min-w-0 overflow-x-auto scrollbar-none py-1 pr-2">
                     {/* TradingView Brand Indicator */}
-                    <div className="flex items-center gap-2 pr-3 border-r border-[#2a2e39]">
-                        <div className="w-6 h-6 rounded-md bg-[#2962ff] flex items-center justify-center font-bold text-white text-xs shadow-sm">
+                    <div className="flex items-center gap-1.5 pr-2.5 border-r border-[#2a2e39] shrink-0">
+                        <div className="w-5 h-5 rounded bg-[#2962ff] flex items-center justify-center font-bold text-white text-[10px] shadow-sm">
                             TV
                         </div>
                         <span className="font-mono text-xs font-bold text-slate-200 tracking-wider hidden sm:inline">
-                            F.R.I.D.A.Y. PRO
+                            F.R.I.D.A.Y.
                         </span>
                     </div>
 
                     {/* Symbol Search Button (TradingView Style) */}
                     <button
                         onClick={() => setShowSymbolSearchModal(true)}
-                        className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-lg bg-[#2a2e39]/80 hover:bg-[#363a45] text-white text-xs font-semibold border border-[#363a45] transition-all cursor-pointer shadow-sm"
+                        className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#2a2e39]/80 hover:bg-[#363a45] text-white text-xs font-semibold border border-[#363a45] transition-all cursor-pointer shadow-sm shrink-0"
                     >
-                        <Search className="w-4 h-4 text-[#2962ff]" />
+                        <Search className="w-3.5 h-3.5 text-[#2962ff]" />
                         <span className="font-bold tracking-wide">{selectedSymbol.replace(/^.*:/, '')}</span>
                         <span className="text-[10px] text-slate-400 font-mono hidden md:inline ml-1">
                             {selectedSymbol}
@@ -207,14 +207,14 @@ export default function QuantumTradingWorkstation({ isMinimized = false, onMinim
                     </button>
 
                     {/* Timeframe Selector Bar */}
-                    <div className="flex items-center gap-1 pl-3 border-l border-[#2a2e39]">
+                    <div className="flex items-center gap-0.5 pl-2 border-l border-[#2a2e39] shrink-0">
                         {TIMEFRAMES.map((tf) => (
                             <button
                                 key={tf.value}
                                 onClick={() => setSelectedInterval(tf.value)}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                className={`px-2 py-0.5 rounded text-xs font-bold transition-all cursor-pointer ${
                                     selectedInterval === tf.value
-                                        ? 'bg-[#2962ff] text-white shadow-md'
+                                        ? 'bg-[#2962ff] text-white shadow-sm'
                                         : 'text-slate-400 hover:text-slate-100 hover:bg-[#2a2e39]'
                                 }`}
                             >
@@ -224,17 +224,17 @@ export default function QuantumTradingWorkstation({ isMinimized = false, onMinim
                     </div>
 
                     {/* Indicators Button */}
-                    <div className="hidden lg:flex items-center gap-1 pl-3 border-l border-[#2a2e39]">
-                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2a2e39]/60 hover:bg-[#2a2e39] text-slate-300 text-xs font-semibold cursor-pointer border border-[#363a45]/50 transition-all">
+                    <div className="hidden lg:flex items-center gap-1 pl-2 border-l border-[#2a2e39] shrink-0">
+                        <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#2a2e39]/60 hover:bg-[#2a2e39] text-slate-300 text-xs font-semibold cursor-pointer border border-[#363a45]/50 transition-all">
                             <span className="font-serif italic font-bold text-[#2962ff]">fx</span>
                             <span>Indicators</span>
                         </button>
                     </div>
 
-                    </div>
+                </div>
 
                 {/* Right Action Tools: Multi-Chart Selector, Mic Silence, Minimize, Fullscreen, Exit */}
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5 shrink-0 pl-2">
                     {/* Multi-Chart Grid Toggle Selector */}
                     <div className="flex items-center gap-1 bg-[#1a1e29] p-1 rounded-lg border border-[#2a2e39] font-mono">
                         <button
@@ -455,9 +455,9 @@ export default function QuantumTradingWorkstation({ isMinimized = false, onMinim
             </AnimatePresence>
 
             {/* Main Workstation Body: Multi-Chart Grid on Left + Dedicated Watchlist Panel on Right */}
-            <div className="flex-1 w-full h-full flex min-h-0 relative overflow-hidden">
+            <div className="flex-1 w-full h-full flex min-h-0 min-w-0 relative overflow-hidden">
                 {/* Multi-Chart Container Grid */}
-                <div className="flex-1 h-full relative bg-[#131722]">
+                <div className="flex-1 min-w-0 h-full relative bg-[#131722] overflow-hidden">
                     {layoutGrid === 'single' && (
                         <ProfessionalChart symbol={selectedSymbol} interval={selectedInterval} />
                     )}

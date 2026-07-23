@@ -430,7 +430,7 @@ export default function CustomWatchlist({ currentSymbol, onSelectSymbol }) {
     const activeItem = watchlistItems.find(i => i.symbol === currentSymbol) || watchlistItems[0] || DEFAULT_WATCHLIST_ITEMS[0];
 
     return (
-        <div className="flex h-full select-none font-sans z-30 shadow-2xl overflow-hidden bg-[#131722] text-[#d1d4dc]">
+        <div className="flex h-full select-none font-sans z-30 shadow-2xl overflow-hidden bg-[#131722] text-[#d1d4dc] shrink-0 max-w-[45vw]">
             {/* Draggable Resize Divider Handle on Left Edge */}
             <div
                 onMouseDown={handleMouseDownResize}

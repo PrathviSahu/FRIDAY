@@ -264,23 +264,9 @@ export default function ProfessionalChart({ symbol = 'FX:EURUSD', interval: prop
                     <ChevronDown size={11} style={{ color: TV_THEME.textLight }} />
                 </div>
 
-                {/* Timeframe buttons — TradingView style */}
-                <div className="flex items-center gap-0 px-1">
-                    {TIMEFRAMES.map(tf => (
-                        <button
-                            key={tf.value}
-                            onClick={() => handleIntervalClick(tf.value)}
-                            className="transition-all duration-100 rounded font-mono text-xs px-2 py-0.5"
-                            style={{
-                                background:   interval === tf.value ? '#2962ff' : 'transparent',
-                                color:         interval === tf.value ? '#fff'           : TV_THEME.text,
-                                fontWeight:    interval === tf.value ? '700' : '400',
-                                fontSize:      '11px',
-                            }}
-                        >
-                            {tf.label}
-                        </button>
-                    ))}
+                {/* Current Active Interval Badge */}
+                <div className="flex items-center gap-1 px-2 border-r border-[#2a2e39] text-xs font-mono font-semibold text-cyan-400">
+                    {TIMEFRAMES.find(t => t.value === interval)?.label || `${interval}m`}
                 </div>
 
                 <div style={{ flex: 1 }} />
