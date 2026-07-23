@@ -1,7 +1,7 @@
 """macOS Display & System Automation Controller for F.R.I.D.A.Y.
 
 Provides hardware & display controls:
-- Display Brightness adjustment via CoreGraphics DisplayServices + AppleScript hardware keycode simulation
+- Display Brightness adjustment via CoreGraphics DisplayServices
 - System Dark Mode / Light Mode toggle via AppleScript
 - System Volume & Mute control via AppleScript
 - Screen Saver / Lock Display execution
@@ -55,42 +55,39 @@ def set_brightness(level: float) -> bool:
         level = level / 100.0
     level = max(0.0, min(1.0, float(level)))
 
-    current = get_brightness()
-    success = False
-
-    # 1. Try C-bindings for DisplayServices across all active displays
+    # 1. Primary: C-bindings for DisplayServices (Direct, exact 0-1.0 setting)
     if _display_services:
         try:
             displays = [1]
             if _quartz:
                 try:
                     (err, d_list, count) = _quartz.CGGetOnlineDisplayList(10, None, None)
-                    if d_list:
+                    if d_list and len(d_list) > 0:
                         displays = list(d_list)
                 except Exception:
                     displays = [_quartz.CGMainDisplayID()]
 
             for d in displays:
-                _display_services.DisplayServicesSetBrightness(d, level)
-            success = True
-            print(f"[MacControls] Set display brightness to {int(level * 100)}% via DisplayServices")
+                _display_services.DisplayServicesSetBrightness(d, ctypes.c_float(level))
+            print(f"[MacControls] Set display brightness to {int(round(level * 100))}% via DisplayServices")
+            return True
         except Exception as e:
             print(f"[MacControls] DisplayServices error: {e}")
 
-    # 2. Keycode 144 (Down) / 145 (Up) AppleScript hardware simulation for Apple Silicon & macOS Control Center
+    # 2. Fallback only if DisplayServices fails: Keycode 144/145 AppleScript
     try:
+        current = get_brightness()
         diff = level - current
         steps = int(round(diff * 16))
         if steps != 0:
             key_code = 145 if steps > 0 else 144
             script = f'tell application "System Events" to repeat {abs(steps)} times\nkey code {key_code}\nend repeat'
             subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=3)
-            success = True
-            print(f"[MacControls] Triggered {abs(steps)} keycode {key_code} brightness steps")
+            return True
     except Exception as e:
         print(f"[MacControls] AppleScript brightness keycode error: {e}")
 
-    return success
+    return False
 
 
 def get_dark_mode() -> bool:
@@ -190,7 +187,7 @@ def get_display_status() -> Dict[str, Any]:
     """Get complete display and audio status overview."""
     vol_info = get_system_volume()
     return {
-        "brightness": int(get_brightness() * 100),
+        "brightness": int(round(get_brightness() * 100)),
         "dark_mode": get_dark_mode(),
         "volume": vol_info["volume"],
         "muted": vol_info["muted"],
