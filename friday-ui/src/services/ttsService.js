@@ -12,6 +12,9 @@ let currentResolve = null; // Holds the pending speak() promise resolver for ins
  * so the await speak(...) in useSpeech.js returns immediately.
  */
 export function stopSpeaking() {
+  // Restore Spotify volume immediately on interrupt
+  fetch('http://localhost:8000/api/spotify/unduck', { method: 'POST' }).catch(() => {});
+
   // Resolve pending promise immediately so await speak() returns and loop continues
   if (currentResolve) {
     const resolve = currentResolve;
@@ -38,12 +41,19 @@ export function stopSpeaking() {
 export async function speak(text) {
   if (!text || typeof text !== 'string') return;
 
+  // Duck Spotify music volume while FRIDAY is speaking
+  fetch('http://localhost:8000/api/spotify/duck', { method: 'POST' }).catch(() => {});
+
+  const doneSpeaking = () => {
+    fetch('http://localhost:8000/api/spotify/unduck', { method: 'POST' }).catch(() => {});
+  };
+
   // Only stop a PREVIOUS audio if something is actively playing
-  // (do NOT call stopSpeaking() unconditionally — that would abort our own promise)
   if (currentAudio) {
     try { currentAudio.pause(); currentAudio.currentTime = 0; } catch (_) {}
     currentAudio = null;
   }
+
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
@@ -67,6 +77,7 @@ export async function speak(text) {
 
           audio.onended = () => {
             currentAudio = null;
+            doneSpeaking();
             if (currentResolve === resolve) {
               currentResolve = null;
               resolve();
@@ -78,7 +89,10 @@ export async function speak(text) {
             if (currentResolve === resolve) {
               currentResolve = null;
             }
-            fallbackWebSpeech(text, resolve);
+            fallbackWebSpeech(text, () => {
+              doneSpeaking();
+              resolve();
+            });
           };
 
           audio.play().catch(() => {
@@ -86,7 +100,10 @@ export async function speak(text) {
             if (currentResolve === resolve) {
               currentResolve = null;
             }
-            fallbackWebSpeech(text, resolve);
+            fallbackWebSpeech(text, () => {
+              doneSpeaking();
+              resolve();
+            });
           });
         });
       }
@@ -98,12 +115,14 @@ export async function speak(text) {
   return new Promise((resolve) => {
     currentResolve = resolve;
     fallbackWebSpeech(text, () => {
+      doneSpeaking();
       if (currentResolve === resolve) {
         currentResolve = null;
       }
       resolve();
     });
   });
+
 }
 
 function fallbackWebSpeech(text, onEnd) {

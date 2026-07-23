@@ -20,23 +20,30 @@ Key architectural pillars:
 
 ## ✨ Full Feature Breakdown
 
-### 🎙️ 1. Dual-Engine Voice AI & Conversation Core
-- **Sub-150ms Response Speed**: Powered by Groq's Llama 3.3 70B for real-time voice interaction & quick actions.
-- **Multimodal Reasoning**: Google Gemini 2.5 integration for deep analytical queries and fallbacks.
-- **Always-On Speech Recognition**: Continuous Web Speech API with STT fuzzy recovery (recovers misheard words, e.g. *"temper city"* → *"Self Aware by Temper City"*).
-- **Voice Fingerprint & Owner Security**: Dedicated owner authentication ("Prem") with guest access control (`"allow guest"` / `"revoke guest"`).
-- **Bilingual Dialogue**: Automatically responds in English or Hinglish based on spoken context.
-- **Neural Text-to-Speech**: Microsoft Edge-TTS with background speech queueing to eliminate overlapping audio.
+### 🧠 1. Adaptive Self-Learning AI Brain & Memory Core (`learning_engine.py`)
+- **Sub-150ms Dual-Engine LLM**: Groq Llama 3.3 70B primary engine (~150ms) + Google Gemini 2.5 failover.
+- **Unified SQLite Brain Database (`friday_brain.db`)**:
+  - `memories`: Permanent facts & user preferences about Prem.
+  - `conversation_history`: Short-term context & RAG keyword-token semantic memory search across past conversation turns.
+  - `user_action_habits`: High-value habit tracking (trading, music, weather, job search) by hour & day-of-week with proactive verbal suggestions when confidence $S_{habit} \ge 0.70$.
+  - `user_corrections`: Automatic voice correction detection (*"wrong song"*, *"not that remix"*, *"yeh nahi"*) applying a **-40.0 soft penalty weight** to rejected targets.
+  - `job_profile`, `resume_data`, `job_applications`: Full career profile memory with automatic signal extraction (*"I am a Java developer"* → saves role, skills, experience).
+- **Dynamic Brevity Controller**: Auto-adjusts response length based on query complexity (≤8 words → 1 short phrase; questions → max 2 sentences).
+- **Voice Fingerprint & Security**: Dedicated owner authorization ("Prem") with gated guest permission controls (`"allow guest"` / `"revoke guest"`).
 
-### 📈 2. Quantum Trading Workstation
+### 🎵 2. Zero-Config Spotify Automation & Smart Audio Ducking
+- **Zero-OAuth Web Player Token Engine**: Anonymous token resolver for instant song & playlist playback without manual API credentials.
+- **Automatic Audio Ducking**: Spotify music volume automatically dips to 20% whenever FRIDAY speaks and restores instantly when she finishes, ensuring crisp speech clarity over music.
+- **Voice Media Control**: *"play Kesariya"*, *"volume down"*, *"mute"*, *"set volume to 70%"*, *"next track"*, *"pause"*, *"play English playlist"*.
+- **Now Playing Telemetry**: Live track title, artist, artwork, position timer, and click-to-seek progress bar (`/api/spotify/seek`).
+
+### 📈 3. Quantum Trading Workstation
 - **TradingView Lightweight Charts Engine**: High-performance canvas chart rendering with candlestick & volume histograms.
 - **Real-Time Data Pipeline (`/api/trading/ohlcv`)**: Live and historical OHLCV data via Yahoo Finance (`yfinance`) across 7 timeframes (`1m`, `5m`, `15m`, `30m`, `1h`, `1D`, `1W`).
 - **5000+ Symbols Covered**: Indian Equities (`NSE:RELIANCE`, `NSE:TCS`, `BSE:SENSEX`, `NSE:NIFTY50`), Forex (`FX:EURUSD`), Crypto (`BINANCE:BTCUSDT`), Global Indices (`OANDA:NAS100USD`), and US Equities.
 - **Persistent Drag-and-Drop Watchlist**: HTML5 drag-and-drop reordering. All custom ordering, stock additions, and deletions persist permanently in SQLite (`friday_trading_db.sqlite`) and `localStorage`.
 - **Live Auto-Polling**: Real-time tick updates every 30 seconds with pulsing `LIVE` badge and manual refresh button (`↺`).
 
-### 🎵 3. Zero-Config Spotify Automation
-- **Zero-OAuth Web Player Token Engine**: Anonymous token resolver for instant music playback without manual API credentials.
 - **Voice Media Control**: *"play Kesariya"*, *"volume down"*, *"mute"*, *"set volume to 70%"*, *"next track"*, *"pause"*, *"play English playlist"*.
 - **Now Playing Telemetry**: Live song title, artist name, album cover art, playback position timer, and click-to-seek progress bar (`/api/spotify/seek`).
 

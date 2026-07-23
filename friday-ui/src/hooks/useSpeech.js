@@ -138,28 +138,41 @@ export function useSpeech({ locked, isLocked, workspace = 'unlocked', enabled = 
 
         console.log('[Voice] Raw speech recognized:', rawTranscript);
 
-        // ⚡ INSTANT BARGE-IN / VOICE INTERRUPT:
-        // If FRIDAY is currently speaking and user speaks anything (or says "Friday"), STOP TTS IMMEDIATELY!
+        // ⚡ INSTANT BARGE-IN: stop TTS when user speaks
         if (speakingRef.current) {
-          console.log('[Voice Interrupt] 🛑 User speech detected mid-sentence! Aborting TTS playback immediately...');
+          console.log('[Voice Interrupt] 🛑 User speech mid-sentence — aborting TTS...');
           stopSpeaking();
           speakingRef.current = false;
         }
 
-        // Clean optional wake-word if user prefixed it ("Friday decrease volume" -> "decrease volume")
+        // ── Wake-word stripping (only at start of transcript) ─────────────────
+        // Strips optional wake-word prefix: "Friday play music" -> "play music", "Hey Friday volume 80" -> "volume 80"
         let query = rawTranscript.trim()
-          .replace(/(?:if|he|hey|hi|hello|ok|okay|sun|suno)?\s*(?:friday|fraide|frida|freddy|frieda)\b/gi, '')
+          // Fix known Web Speech STT phonetic misheards at start of phrase
+          .replace(/^ready\s*(?:film|feel|fill)/i, 'play')
+          .replace(/^if\s+friday\s+please/i, 'play')
+          .replace(/^suno\s+friday/i, '')
+          .replace(/^(?:if|he|hey|hi|hello|ok|okay|sun|suno|aye)?\s*(?:friday|fraide|frida|freddy|frieda|freddie|freya|phiday|fri\s*day)\b\s*/gi, '')
           .trim();
 
-        // If user said ONLY "Friday" to interrupt speech, stopSpeaking() already executed! Resume listening without sending empty query.
+        // Wake-word-only interrupt (user said only "Friday" to stop TTS)
         if (!query) {
-          console.log('[Voice Interrupt] TTS playback interrupted by wake-word. Listening for user command...');
+          console.log('[Voice Interrupt] Wake-word only — listening for command...');
           noSpeechStreak = 0;
           return;
         }
 
-        // ⚡ DEDUP GUARD: Prevent double-firing of the same transcript within 2.5 seconds
-        // (browser fires interim + final results; also catches echo after abort)
+        // ── Minimal Noise Filter (grunts only) ─────────────────────────────────
+        // ONLY drop pure non-word grunts — NEVER drop song names or short queries!
+        const NOISE_ONLY = new Set(['uh', 'um', 'hmm', 'hm', 'ah', 'oh']);
+        const normalized = query.toLowerCase().trim();
+        if (NOISE_ONLY.has(normalized)) {
+          console.log('[Voice] Ignored grunt noise:', query);
+          start();
+          return;
+        }
+
+        // ── Dedup guard ───────────────────────────────────────────────────────
         const now = Date.now();
         const lastRaw = lastTranscriptRef.current;
         if (lastRaw && lastRaw.text === rawTranscript.trim() && now - lastRaw.ts < 2500) {
@@ -168,7 +181,7 @@ export function useSpeech({ locked, isLocked, workspace = 'unlocked', enabled = 
         }
         lastTranscriptRef.current = { text: rawTranscript.trim(), ts: now };
 
-        // STOP Speech Recognition immediately so it doesn't listen while processing or repeat commands
+        // Stop recognizer while processing
         if (rec) {
           rec.onend    = null;
           rec.onerror  = null;
@@ -180,22 +193,18 @@ export function useSpeech({ locked, isLocked, workspace = 'unlocked', enabled = 
 
         noSpeechStreak = 0;
 
-        // Fix speech recognition phonetic misrecognitions
+        // Fix common Web Speech STT phonetic misrecognitions
         if (/^at\s+this\s+song/i.test(query)) {
           query = query.replace(/^at\s+this\s+song/i, 'add this song');
         }
 
-        const normalized = query.toLowerCase();
-        console.log('[Voice] Transcript:', rawTranscript.trim(), '-> normalized:', normalized);
+        console.log('[Voice] Valid command recognized:', rawTranscript.trim(), '-> query:', query);
 
         if (query.length > 0) {
-          console.log('[Voice] Direct query sent to AI (no wake word required):', query);
-
-          // Check if this is a "yes" confirmation for a pending proactive action
           if (window.fridayCheckPendingConfirmation) {
             const handled = await window.fridayCheckPendingConfirmation(query);
             if (handled) {
-              console.log('[Voice] Pending proactive action confirmed — skipping AI call.');
+              console.log('[Voice] Pending proactive action confirmed.');
               start();
               return;
             }
@@ -206,6 +215,8 @@ export function useSpeech({ locked, isLocked, workspace = 'unlocked', enabled = 
           start();
         }
       };
+
+
 
       try {
         rec.start();

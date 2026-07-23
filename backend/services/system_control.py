@@ -373,23 +373,28 @@ def _find_spotify_track_uri_web(song_query: str) -> dict:
 
     if best_match:
         track_title = best_match.get("trackName", clean_q)
-        artist_name = best_match.get("artistName", "")
-        album_name  = best_match.get("collectionName", "")
-        # Clean track title and album name for Spotify search
-        clean_title = _strip_qualifiers(track_title)
-        clean_album = _strip_qualifiers(album_name)
+        artist_name  = best_match.get("artistName", "")
+        album_name   = best_match.get("collectionName", "")
 
-        # Pinpoint Search String: Track + Primary Artist + Original Album Name
-        # Explicitly targets the original track & album, eliminating derivative remixes
-        spotify_search_q = f"{clean_title} {artist_name} {clean_album}".strip()
+        # Use only the FIRST artist (before first comma or &) to keep the search URI clean.
+        # iTunes often returns "Artist A, Artist B & Artist C" which breaks Spotify search.
+        primary_artist = re.split(r"[,&]", artist_name)[0].strip()
+
+        # Clean track title — strip qualifiers like (Reprise), (Remix), [Extended] etc.
+        clean_title = _strip_qualifiers(track_title)
+
+        # Minimal precise query: just "<Track Title> <Primary Artist>"
+        # This is the most reliable format for Spotify's native search
+        spotify_search_q = f"{clean_title} {primary_artist}".strip()
         native_search_uri = f"spotify:search:{urllib.parse.quote(spotify_search_q)}"
-        print(f"[Spotify Metadata Resolver] ⚡ Resolved '{clean_q}' -> Track: '{track_title}' by {artist_name} (Album: {album_name}) (Score {best_score:.1f})")
+        print(f"[Spotify Metadata Resolver] ⚡ Resolved '{clean_q}' → Track: '{track_title}' by {artist_name} (Score {best_score:.1f})")
         print(f"[Spotify Direct Search] 🚀 URI: {native_search_uri}")
-        return {"uri": native_search_uri, "title": track_title, "artist": artist_name}
+        return {"uri": native_search_uri, "title": track_title, "artist": primary_artist}
 
     native_search_uri = f"spotify:search:{urllib.parse.quote(clean_q)}"
     print(f"[Spotify Direct Search] ⚡ Fallback native search: {native_search_uri}")
     return {"uri": native_search_uri, "title": clean_q, "artist": ""}
+
 
 
 def _search_best_track_uri(token: str, query: str) -> dict:
@@ -471,21 +476,33 @@ def _execute_applescript_silent(script_body: str) -> subprocess.CompletedProcess
     return subprocess.run(["osascript", "-e", full_script], timeout=5, capture_output=True)
 
 
-def verify_spotify_playback(expected_title: str = "", expected_artist: str = "") -> bool:
-    """Verify active playback state and validate that expected title/artist matches playing track."""
+def verify_spotify_playback(expected_title: str = "", expected_artist: str = "", is_search_uri: bool = False) -> bool:
+    """Verify active playback state and validate that expected title/artist matches playing track.
+
+    Args:
+        expected_title: Title we expected to play (from API search result)
+        expected_artist: Artist we expected (from API search result)
+        is_search_uri: If True, we used a generic spotify:search: URI — skip strict title match,
+                       just confirm something is actively playing.
+    """
     if not IS_MAC or not is_spotify_running():
         print("[Spotify Verification] ❌ Spotify is not running.")
         return False
 
-    for attempt in range(1, 4):
+    for attempt in range(1, 5):  # 4 attempts, 1.5s apart = up to 6s total
         info = get_spotify_current_track()
         if info.get("playing"):
             if info.get("is_ad"):
-                print(f"[Spotify Verification] 📢 Spotify is playing an advertisement ('{info.get('title')}'). Track queued!")
+                print(f"[Spotify Verification] 📢 Spotify is playing an advertisement. Track queued!")
                 return True
 
             actual_title = info.get("title", "").strip()
             actual_artist = info.get("artist", "").strip()
+
+            # If we used a generic spotify:search: URI, just confirm something is playing
+            if is_search_uri:
+                print(f"[Spotify Verification] ✅ Search URI playback confirmed: '{actual_title}' by {actual_artist}")
+                return True
 
             if expected_title:
                 actual_comb = f"{actual_title} {actual_artist}".lower()
@@ -494,26 +511,34 @@ def verify_spotify_playback(expected_title: str = "", expected_artist: str = "")
 
                 clean_exp = _strip_qualifiers(expected_title).lower()
                 clean_act = _strip_qualifiers(actual_title).lower()
-                match_ok = sim >= 0.40 or (clean_exp and clean_exp in clean_act) or (clean_act and clean_act in clean_exp)
+
+                # More lenient: 0.35 similarity OR keyword overlap in title
+                match_ok = (
+                    sim >= 0.35
+                    or (clean_exp and clean_exp in clean_act)
+                    or (clean_act and clean_act in clean_exp)
+                    or any(w in clean_act for w in clean_exp.split() if len(w) > 3)
+                )
 
                 if not match_ok:
-                    print(f"[Spotify Verification] ❌ Track title mismatch: Playing '{actual_title}' by {actual_artist} — Expected '{expected_title}' (Sim: {sim:.2f})")
+                    print(f"[Spotify Verification] ❌ Title mismatch: Playing '{actual_title}' — Expected '{expected_title}' (Sim: {sim:.2f})")
                     return False
 
-            print(f"[Spotify Verification] ✅ Verified playback active: '{actual_title}' by {actual_artist}")
+            print(f"[Spotify Verification] ✅ Verified: '{actual_title}' by {actual_artist}")
             return True
 
-        print(f"[Spotify Verification] ⚠️ Attempt {attempt}: Player state is paused. Sending explicit AppleScript play command...")
+        print(f"[Spotify Verification] ⚠️ Attempt {attempt}: Not playing yet — sending play command...")
         _execute_applescript_silent('tell application "Spotify" to play')
-        time.sleep(1.2)
+        time.sleep(1.5)
 
     final_info = get_spotify_current_track()
     if final_info.get("playing"):
-        print(f"[Spotify Verification] ✅ Playback verified active: '{final_info.get('title')}'")
+        print(f"[Spotify Verification] ✅ Playback confirmed: '{final_info.get('title')}'")
         return True
 
-    print("[Spotify Verification] ❌ Playback verification failed.")
+    print("[Spotify Verification] ❌ Playback verification failed after all attempts.")
     return False
+
 
 
 def play_spotify_uri(uri: str) -> bool:
@@ -639,7 +664,9 @@ def search_and_play_spotify(song_query: str) -> bool:
         play_spotify_uri(track_uri)
 
     # Validate playback against expected track title/artist
-    if verify_spotify_playback(expected_title=expected_title, expected_artist=expected_artist):
+    is_search_uri = track_uri.startswith("spotify:search:")
+    if verify_spotify_playback(expected_title=expected_title, expected_artist=expected_artist, is_search_uri=is_search_uri):
+
         if track_uri and not track_uri.startswith("spotify:search:"):
             print(f"[Spotify Cache] ✅ Verification passed — caching '{norm_q}' -> {track_uri}")
             cache[norm_q] = track_uri
@@ -775,6 +802,38 @@ def take_screenshot() -> str:
         return ""
 
 
+_pre_duck_volume = -1
+
+def duck_spotify_volume() -> bool:
+    """Temporarily duck (lower) Spotify volume while FRIDAY is speaking."""
+    global _pre_duck_volume
+    if not IS_MAC or not is_spotify_running():
+        return False
+    try:
+        vol = _get_spotify_volume()
+        if vol > 25:
+            _pre_duck_volume = vol
+            _execute_applescript_silent('tell application "Spotify" to set sound volume to 20')
+            return True
+    except Exception:
+        pass
+    return False
+
+def unduck_spotify_volume() -> bool:
+    """Restore Spotify volume back to pre-duck level after speaking."""
+    global _pre_duck_volume
+    if not IS_MAC or not is_spotify_running():
+        return False
+    try:
+        if _pre_duck_volume > 0:
+            _execute_applescript_silent(f'tell application "Spotify" to set sound volume to {_pre_duck_volume}')
+            _pre_duck_volume = -1
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def _get_spotify_volume() -> int:
     """Get current Spotify sound volume (0-100)."""
     try:
@@ -785,6 +844,7 @@ def _get_spotify_volume() -> int:
         return int(result.stdout.strip())
     except Exception:
         return 50  # fallback
+
 
 
 def control_spotify(command: str, query: str = "", volume_percent: int = -1) -> bool:

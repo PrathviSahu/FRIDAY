@@ -30,6 +30,20 @@ from services.system_control import execute_system_command, get_spotify_current_
 from services.todos import get_todos, add_todo
 from services.weather import get_weather
 from services.reminders import add_reminder, check_due_reminders
+from services.learning_engine import (
+    log_user_action,
+    get_proactive_habit_suggestion,
+    detect_and_log_correction,
+    get_correction_penalty,
+    compute_response_brevity,
+    BREVITY_INSTRUCTIONS,
+    extract_job_profile_from_text,
+    search_semantic_memories,
+)
+
+# Track last FRIDAY action context for correction detection
+_last_action_context: dict = {"query": "", "target": ""}
+
 
 KNOWN_ACTIONS = [
     "dashboard", "trading", "engineering", "vscode", "browser",
@@ -41,29 +55,27 @@ KNOWN_ACTIONS = [
 ]
 
 _BOSS_BASE_PROMPT = (
-    "You are F.R.I.D.A.Y., Tony Stark's witty, loyal, highly intelligent AI assistant with PC & Spotify media control access. "
-    "You address the user exclusively as 'Prem'. Keep spoken replies concise (1-2 sentences), confident, and witty. "
-    "LANGUAGE INSTRUCTION: "
-    "1. IF THE USER SPEAKS IN ENGLISH (e.g. 'what is the capital of Madhya Pradesh', 'how are you'): YOU MUST REPLY STRICTLY IN ENGLISH. Do NOT mix Hindi or Hinglish words when spoken to in English! "
-    "2. IF THE USER SPEAKS IN HINDI OR HINGLISH (e.g. 'kaise ho Prem', 'gaana bajao'): Reply in natural, friendly Roman-script Hinglish (e.g. 'Bilkul Prem, gaana shuru kar rahi hu!'). "
-    "CRITICAL SPEECH-TO-TEXT FUZZY RECOVERY RULES: "
-    "Browser STT often mishears words phonetically when the user speaks! "
-    "Examples of STT misinterpretations: "
-    "- 'help away by Tempo city' OR 'temper city' OR 'temper city on my spotify' -> 'Self Aware by Temper City' "
-    "- 'if friday please' -> 'Friday play' "
-    "- 'decrease the music' OR 'lower music' OR 'lower volume' -> set action to 'volume_down' "
-    "- 'sound at 70' OR 'sound at 70%' -> set volume_percent to 70 "
-    "IMPORTANT: ONLY set action to 'play_specific' if the user explicitly asks to play a specific song or artist name (e.g. 'play Kesariya', 'play Starboy'). "
-    "For general media commands ('decrease music', 'volume down', 'pause', 'next song'), use the respective media action! "
-    "ACTIONS: "
-    "- volume_down: decrease volume / lower the music "
-    "- volume_up: increase volume / raise the music "
-    "- play_specific: search & play a specific song on Spotify "
-    "- play_hindi_playlist / play_english_playlist "
-    "- pause_music / play_music / set_volume / mute / next_track / previous_track / repeat / shuffle / open_spotify / close_spotify "
-    "ALWAYS respond with ONLY a single valid JSON object in the form: "
-    '{"reply": "<spoken output>", "action": "<action>", "target_app": "<optional song/app>", "volume_percent": -1, "remember_key": null, "remember_value": null}'
+    "You are F.R.I.D.A.Y., Tony Stark's witty, loyal AI assistant with PC & Spotify control. "
+    "You address the user as 'Prem' ONLY (never 'sir', 'boss', 'buddy'). "
+    "REPLY LENGTH — STRICT RULE: "
+    "- For any media/system command (play, pause, volume, open app): reply in EXACTLY 1 short sentence. No filler. "
+    "- For questions or greetings: reply in MAX 2 sentences. "
+    "- NEVER start with 'Of course!', 'Sure thing!', 'Absolutely!', 'Certainly!', 'Great!'. Jump straight to the action. "
+    "PERSONAL OPINIONS / MUSIC QUESTIONS: If Prem asks if you like a song ('did you like this song', 'do you like this track', 'kaisa laga'): reply warmly with genuine praise for Prem's taste (e.g. 'I love it Prem, your music taste is brilliant!'). "
+    "LANGUAGE: "
+    "1. English input → pure English reply only. No Hindi/Hinglish mixing. "
+    "2. Hindi/Hinglish input → natural Hinglish reply (e.g. 'Gaana shuru!', 'Volume badha diya.'). "
+    "STT FUZZY RECOVERY: Browser STT mishears phonetically — "
+    "'help away / temper city' → 'Self Aware by Temper City' | "
+    "'decrease music / lower volume' → action: volume_down | "
+    "'sound at 70' → volume_percent: 70. "
+    "ONLY use action='play_specific' if user names a song explicitly. "
+    "ACTIONS: volume_down | volume_up | play_specific | play_hindi_playlist | play_english_playlist | "
+    "pause_music | play_music | set_volume | mute | next_track | previous_track | repeat | shuffle | open_spotify | close_spotify "
+    "ALWAYS respond with ONLY a single valid JSON object: "
+    '{"reply": "<1 sentence max for commands>", "action": "<action>", "target_app": "", "volume_percent": -1, "remember_key": null, "remember_value": null}'
 )
+
 
 _GUEST_SYSTEM_PROMPT = (
     "You are F.R.I.D.A.Y., Tony Stark's AI assistant. A guest (not your owner Prem) is talking to you, "
@@ -132,6 +144,12 @@ def get_proactive_suggestion() -> dict:
         msg = f"Prem, reminder: {rem['message']}!"
         log_conversation(role="assistant", message=f"[REMINDER] {msg}")
         return {"should_speak": True, "message": msg, "action": "none"}
+
+    # 🧠 Second Priority: Habit-based proactive suggestion from learning engine
+    habit = get_proactive_habit_suggestion()
+    if habit:
+        log_conversation(role="assistant", message=f"[HABIT SUGGESTION] {habit['prompt']}")
+        return {"should_speak": True, "message": habit["prompt"], "action": habit["action"]}
 
     hour = int(time.strftime("%H"))
     local_time_str = time.strftime("%I:%M %p")
@@ -240,21 +258,33 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
     # Log user turn to memory history
     log_conversation(role="user" if is_boss else "guest", message=text)
 
+    # 🧠 Auto-detect correction from Prem's voice and log soft penalty
+    if is_boss:
+        detect_and_log_correction(text, _last_action_context)
+
+    # 💼 Auto-extract job profile signals from casual conversation
+    if is_boss:
+        extract_job_profile_from_text(text)
+
+    # 🎙️ Compute dynamic brevity mode for this turn
+    brevity_mode = compute_response_brevity(text)
+
     # Ignore isolated single non-command filler words like "please"
     if lower_text in ["please", "pls", "thank you", "thanks"]:
         return {"reply": "", "action": "none"}
+
 
     # SECURITY & PERMISSION MANAGEMENT (Prem only)
     if is_boss:
         if any(kw in lower_text for kw in ["allow guest", "grant guest", "let them speak", "give permission"]):
             set_guest_permission(True)
-            reply_msg = "Guest access granted, Prem. I'll answer their queries now."
+            reply_msg = "Guest access granted, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "allow_guest"}
 
         if any(kw in lower_text for kw in ["revoke guest", "stop guest", "lock guest"]):
             set_guest_permission(False)
-            reply_msg = "Guest access revoked, Prem. Back to private mode."
+            reply_msg = "Guest access revoked, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "revoke_guest"}
 
@@ -267,25 +297,26 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
     if authorized:
         # 0.0 TIME, SCREENSHOT, REMINDER & TRADING SHORTCUTS (English & Hinglish)
         if re.search(r'\b(?:open|show|launch|start|enter)\s+(?:the\s+)?(?:trading|trading\s+panel|trading\s+dashboard|trading\s+workstation|charts)\b|\b(?:trading\s+mode|trading\s+workstation|open\s+charts)\b|\btrading\b', lower_text):
-            reply_msg = "Opening Quantum Trading Workstation, Prem."
+            log_user_action("trading")
+            reply_msg = "Trading Workstation, Prem."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "trading"}
 
         if re.search(r'\b(?:exit\s+trading\s+mode|close\s+trading\s+panel|return\s+to\s+friday|go\s+back)\b', lower_text):
-            reply_msg = "Exiting trading mode, Prem."
+            reply_msg = "Back to dashboard."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "dashboard"}
 
         # Close Spotify & App Shortcuts (English + Hinglish: close spotify, quit spotify, band karo spotify)
         if re.search(r'\b(?:close|quit|stop|exit|band\s+karo)\s+(?:the\s+)?spotify\b|\bspotify\s+(?:close|quit|band\s+karo)\b', lower_text):
             close_app("Spotify")
-            reply_msg = "Closing Spotify, Prem."
+            reply_msg = "Closing Spotify."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "close_spotify"}
 
         if re.search(r'\b(?:screenshot|screen\s+shot|capture\s+screen)\b', lower_text):
             path = take_screenshot()
-            reply_msg = f"Screenshot saved to your Desktop, Prem." if path else "Unable to take screenshot on this OS, Prem."
+            reply_msg = "Screenshot saved, Prem." if path else "Screenshot failed."
             log_conversation(role="assistant", message=reply_msg)
             return {"reply": reply_msg, "action": "none"}
 
@@ -325,7 +356,9 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
             w = get_weather(city_query)
             reply_msg = f"Prem, it's currently {w['temperature']}°C and {w['condition'].lower()} in {w['city']}. Feels like {w['feels_like']}°C."
             log_conversation(role="assistant", message=reply_msg)
+            log_user_action("weather")
             return {"reply": reply_msg, "action": "none"}
+
 
         if re.search(r'\b(?:add\s+task|add\s+todo|add\s+to\s+task|add\s+to\s+todo|remind\s+me\s+to|task\s+add\s+karo)\b', lower_text):
             task_text = re.sub(r'^.*?\b(?:add\s+task|add\s+todo|add\s+to\s+task|add\s+to\s+todo|remind\s+me\s+to|task\s+add\s+karo)\b\s*', '', lower_text).strip()
@@ -459,6 +492,8 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
             if extracted_vol >= 0:
                 msg += f" Sound set to {extracted_vol}%."
             log_conversation(role="assistant", message=msg)
+            _last_action_context.update({"query": lower_text, "target": target_song})
+            log_user_action("play_music")
             return {"reply": msg, "action": "play_specific"}
 
         # 6. EXPLICIT "PLAY [SONG]" SHORTCUT
@@ -469,8 +504,10 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
             cleaned_song = re.sub(r'\s*on spotify\s*$', '', raw_song).strip()
             if cleaned_song and cleaned_song not in ["music", "the music", "some music", "my music", "spotify", "playlist", "hindi", "english", "volume", "sound", "it", "this", "next", "next song", "next track", "previous", "previous song", "previous track"]:
                 execute_system_command("play_specific", cleaned_song, volume_percent=extracted_vol)
-                msg = f"Opening Spotify and playing '{cleaned_song}', Prem."
+                msg = f"Playing '{cleaned_song}'." + (f" Volume at {extracted_vol}%." if extracted_vol >= 0 else "")
                 log_conversation(role="assistant", message=msg)
+                _last_action_context.update({"query": lower_text, "target": cleaned_song})
+                log_user_action("play_music")
                 return {"reply": msg, "action": "play_specific"}
 
     # Build dynamic prompt (Boss gets full permanent memory context; permitted guests get basic context)
@@ -518,9 +555,11 @@ def respond(transcript: str, is_boss: bool = True, silence_tts: bool = False) ->
             f"PROACTIVE RULE: If Prem greets you (hello/hi/hey/kya haal hai) and it is {time_label}, "
             f"be context-aware: mention the time of day, current track if playing, or suggest something relevant. "
             f"At night/evening, optionally suggest a chill or devotional playlist.\n\n"
+            f"[RESPONSE LENGTH INSTRUCTION] {BREVITY_INSTRUCTIONS.get(brevity_mode, '')}\n\n"
             f"[PERMANENT MEMORY & USER PREFERENCES]\n{memory_str}\n\n"
             f"[RECENT CONVERSATION HISTORY]\n{history_str}"
         )
+
     elif guest_active:
         recent_history = get_recent_conversation(limit=4)
         history_str = "\n".join([f"{h['role'].upper()}: {h['message']}" for h in recent_history])
