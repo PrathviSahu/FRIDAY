@@ -1,359 +1,122 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { createChart, CrosshairMode } from 'lightweight-charts';
-import { RefreshCw, TrendingUp, Activity, ChevronDown } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
 
-// TradingView-exact timeframe list
-const TIMEFRAMES = [
-    { label: '1m',  value: '1' },
-    { label: '5m',  value: '5' },
-    { label: '15m', value: '15' },
-    { label: '30m', value: '30' },
-    { label: '1h',  value: '60' },
-    { label: '4h',  value: '240' },
-    { label: '1D',  value: 'D' },
-    { label: '1W',  value: 'W' },
-];
-
-// TradingView dark theme — exact color match
-const TV_THEME = {
-    bg:          '#131722',
-    bgSecondary: '#1e222d',
-    border:      '#2a2e39',
-    text:        '#b2b5be',
-    textLight:   '#787b86',
-    textBright:  '#d1d4dc',
-    cyan:        '#00b7ff',
-    green:       '#089981',
-    red:         '#f23645',
-    liveGreen:   '#26a69a',
-};
-
-function formatOHLC(value, symbol = '') {
-    if (value === undefined || value === null) return '—';
-    const s = String(symbol).toUpperCase();
-    const isJPY = s.includes('JPY');
-    const isFX  = s.includes('FX:');
-    if (isJPY)  return value.toFixed(3);
-    if (isFX)   return value.toFixed(5);
-    return value.toFixed(4);
-}
-
-export default function ProfessionalChart({ symbol = 'FX:EURUSD', interval: propInterval, onIntervalChange }) {
+export default function ProfessionalChart({ symbol = 'FX:EURUSD', interval = '5' }) {
     const containerRef = useRef(null);
-    const chartRef     = useRef(null);
-    const candleRef    = useRef(null);
-    const volumeRef    = useRef(null);
-    const pollRef      = useRef(null);
+    const widgetRef = useRef(null);
 
-    const [interval, setIntervalState] = useState(propInterval || '5');
-    const [loading,  setLoading]   = useState(false);
-    const [error,    setError]     = useState(null);
-    const [ohlcInfo, setOhlcInfo]  = useState(null);
-    const [isLive,   setIsLive]    = useState(false);
-    const [lastTick, setLastTick]  = useState(null);
-    const [upColor,   setUpColor]   = useState(TV_THEME.green);
-    const [downColor, setDownColor] = useState(TV_THEME.red);
-
-    // Sync controlled interval from parent
-    useEffect(() => {
-        if (propInterval && propInterval !== interval) {
-            setIntervalState(propInterval);
-        }
-    }, [propInterval]);
-
-    const handleIntervalClick = (val) => {
-        setIntervalState(val);
-        onIntervalChange?.(val);
+    // Map internal symbol names to TradingView symbols if needed
+    const getTvSymbol = (sym) => {
+        if (!sym) return 'FX:EURUSD';
+        if (sym === 'EURUSD') return 'FX:EURUSD';
+        if (sym === 'GBPUSD') return 'FX:GBPUSD';
+        if (sym === 'USDJPY') return 'FX:USDJPY';
+        if (sym === 'XAUUSD') return 'OANDA:XAUUSD';
+        if (sym === 'BTCUSD' || sym === 'BTCUSDT') return 'BINANCE:BTCUSDT';
+        if (sym === 'NASDAQ' || sym === 'NAS100') return 'OANDA:NAS100USD';
+        if (sym === 'DXY') return 'CAPITALCOM:DXY';
+        return sym;
     };
 
-    // ── Build chart once ─────────────────────────────────────────────────────
+    const tvSymbol = getTvSymbol(symbol);
+
+    // Format interval for TradingView widget: '1', '5', '15', '30', '60', '240', 'D', 'W'
+    const getTvInterval = (intv) => {
+        if (!intv) return '5';
+        if (intv === '1h' || intv === '60') return '60';
+        if (intv === '4h' || intv === '240') return '240';
+        if (intv === '1D' || intv === 'D') return 'D';
+        if (intv === '1W' || intv === 'W') return 'W';
+        return intv;
+    };
+
+    const tvInterval = getTvInterval(interval);
+
     useEffect(() => {
-        if (!containerRef.current) return;
+        const containerId = `tradingview_widget_${Math.random().toString(36).substring(2, 9)}`;
 
-        const chart = createChart(containerRef.current, {
-            layout: {
-                background:  { color: TV_THEME.bg },
-                textColor:   TV_THEME.text,
-                fontFamily:  '"Inter", "JetBrains Mono", -apple-system, monospace',
-                fontSize:    11,
-            },
-            grid: {
-                vertLines: { color: TV_THEME.bgSecondary },
-                horzLines: { color: TV_THEME.bgSecondary },
-            },
-            crosshair: {
-                mode: CrosshairMode.Normal,
-                vertLine: {
-                    color:                TV_THEME.cyan,
-                    width:                1,
-                    style:                1, // dashed
-                    labelBackgroundColor: TV_THEME.bgSecondary,
-                },
-                horzLine: {
-                    color:                TV_THEME.cyan,
-                    width:                1,
-                    style:                1,
-                    labelBackgroundColor: TV_THEME.bgSecondary,
-                },
-            },
-            rightPriceScale: {
-                borderColor:  TV_THEME.border,
-                scaleMargins: { top: 0.06, bottom: 0.20 },
-                mode:         0, // Normal
-            },
-            leftPriceScale: { visible: false },
-            timeScale: {
-                borderColor:    TV_THEME.border,
-                timeVisible:    true,
-                secondsVisible: false,
-                rightOffset:    8,
-                barSpacing:     6,
-            },
-            handleScroll:  { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
-            handleScale:   { axisPressedMouseMove: true, axisDoubleClickReset: true, mouseWheel: true, pinch: true },
-            autoSize:      true,
-        });
-
-        const candleSeries = chart.addCandlestickSeries({
-            upColor,
-            downColor,
-            wickUpColor:      upColor,
-            wickDownColor:    downColor,
-            borderUpColor:    upColor,
-            borderDownColor:  downColor,
-            priceLineVisible: true,
-            lastValueVisible: true,
-        });
-
-        const volumeSeries = chart.addHistogramSeries({
-            priceFormat:  { type: 'volume' },
-            priceScaleId: 'volume',
-        });
-        chart.priceScale('volume').applyOptions({
-            scaleMargins: { top: 0.82, bottom: 0 },
-        });
-
-        chartRef.current  = chart;
-        candleRef.current = candleSeries;
-        volumeRef.current = volumeSeries;
-
-        chart.subscribeCrosshairMove((param) => {
-            if (!param?.seriesData) return;
-            const cd = param.seriesData.get(candleSeries);
-            if (cd) setOhlcInfo(cd);
-        });
-
-        return () => {
-            chart.remove();
-            chartRef.current  = null;
-            candleRef.current = null;
-            volumeRef.current = null;
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Update candle colours live
-    useEffect(() => {
-        if (!candleRef.current) return;
-        candleRef.current.applyOptions({
-            upColor, downColor,
-            wickUpColor: upColor, wickDownColor: downColor,
-            borderUpColor: upColor, borderDownColor: downColor,
-        });
-    }, [upColor, downColor]);
-
-    // ── Fetch full OHLCV history ─────────────────────────────────────────────
-    const fetchData = useCallback(async (sym, iv) => {
-        if (!candleRef.current || !volumeRef.current) return;
-        setLoading(true);
-        setError(null);
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 15000);
-        try {
-            const res = await fetch(
-                `http://localhost:8000/api/trading/ohlcv?symbol=${encodeURIComponent(sym)}&interval=${iv}`,
-                { signal: ctrl.signal }
-            );
-            clearTimeout(timer);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const { candles, error: apiErr, count } = await res.json();
-            if (apiErr) throw new Error(apiErr);
-            if (!candles || candles.length === 0) throw new Error(`No data available for ${sym}`);
-
-            // Deduplicate by time (yfinance sometimes returns dupes)
-            const seen = new Set();
-            const clean = candles
-                .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })
-                .sort((a, b) => a.time - b.time);
-
-            candleRef.current.setData(clean.map(c => ({
-                time: c.time, open: c.open, high: c.high, low: c.low, close: c.close,
-            })));
-            volumeRef.current.setData(clean.map(c => ({
-                time:  c.time,
-                value: c.volume,
-                color: c.close >= c.open ? `${upColor}55` : `${downColor}55`,
-            })));
-            chartRef.current?.timeScale().fitContent();
-            setOhlcInfo(clean[clean.length - 1]);
-            setLastTick(new Date());
-        } catch (e) {
-            clearTimeout(timer);
-            if (e.name === 'AbortError') {
-                setError('Request timed out — click ↺ to retry.');
-            } else {
-                setError(`${e.message}`);
-            }
-        } finally {
-            setLoading(false);
+        if (containerRef.current) {
+            containerRef.current.innerHTML = `<div id="${containerId}" style="width: 100%; height: 100%;" />`;
         }
-    }, [upColor, downColor]);
 
-    // Refetch on symbol or interval change
-    useEffect(() => {
-        fetchData(symbol, interval);
-    }, [symbol, interval, fetchData]);
+        const initWidget = () => {
+            if (!window.TradingView || !document.getElementById(containerId)) return;
 
-    // ── Live tick poll (30s) for intraday intervals ─────────────────────────
-    useEffect(() => {
-        if (pollRef.current) clearInterval(pollRef.current);
-        const shouldPoll = !['D', 'W'].includes(interval);
-        if (!shouldPoll) { setIsLive(false); return; }
-        setIsLive(true);
-
-        pollRef.current = setInterval(async () => {
-            if (!candleRef.current || !volumeRef.current) return;
             try {
-                const res = await fetch(
-                    `http://localhost:8000/api/trading/ohlcv?symbol=${encodeURIComponent(symbol)}&interval=${interval}`
-                );
-                const { candles } = await res.json();
-                if (!candles?.length) return;
-                const sorted = [...candles].sort((a, b) => a.time - b.time);
-                const last = sorted[sorted.length - 1];
-                candleRef.current.update({ time: last.time, open: last.open, high: last.high, low: last.low, close: last.close });
-                volumeRef.current.update({ time: last.time, value: last.volume, color: last.close >= last.open ? `${upColor}55` : `${downColor}55` });
-                setOhlcInfo(last);
-                setLastTick(new Date());
+                widgetRef.current = new window.TradingView.widget({
+                    autosize: true,
+                    symbol: tvSymbol,
+                    interval: tvInterval,
+                    timezone: 'Asia/Kolkata',
+                    theme: 'dark',
+                    style: '1',
+                    locale: 'en',
+                    toolbar_bg: '#131722',
+                    enable_publishing: false,
+                    hide_side_toolbar: false, // 🛠️ Full Left Drawing Toolbar (Trendlines, Fibs, Position Tools, Ruler, Brush)
+                    allow_symbol_change: true,
+                    details: false,
+                    hotlist: false,
+                    calendar: false,
+                    show_popup_button: true,
+                    popup_width: '1000',
+                    popup_height: '650',
+                    container_id: containerId,
+                    backgroundColor: '#131722',
+                    gridColor: 'rgba(42, 46, 57, 0.5)',
+                    disabled_features: [
+                        'widget_bar' // Disables inner details sidebar to prevent TypeError
+                    ],
+                    enabled_features: [
+                        'header_widget',
+                        'header_symbol_search',
+                        'header_resolutions',
+                        'header_chart_type',
+                        'header_indicators',
+                        'header_compare',
+                        'header_undo_redo',
+                        'study_templates',
+                        'use_localstorage_for_settings',
+                        'side_toolbar_in_fullscreen_mode',
+                        'items_favoriting'
+                    ],
+                    overrides: {
+                        "mainSeriesProperties.candleStyle.upColor": "#089981",
+                        "mainSeriesProperties.candleStyle.downColor": "#f23645",
+                        "mainSeriesProperties.candleStyle.drawWick": true,
+                        "mainSeriesProperties.candleStyle.drawBorder": true,
+                        "mainSeriesProperties.candleStyle.borderColor": "#089981",
+                        "mainSeriesProperties.candleStyle.borderUpColor": "#089981",
+                        "mainSeriesProperties.candleStyle.borderDownColor": "#f23645",
+                        "mainSeriesProperties.candleStyle.wickUpColor": "#089981",
+                        "mainSeriesProperties.candleStyle.wickDownColor": "#f23645",
+                        "paneProperties.background": "#131722",
+                        "paneProperties.vertGridProperties.color": "#1e222d",
+                        "paneProperties.horzGridProperties.color": "#1e222d",
+                    }
+                });
             } catch (_) {}
-        }, 30000);
+        };
 
-        return () => { if (pollRef.current) clearInterval(pollRef.current); };
-    }, [symbol, interval, upColor, downColor]);
-
-    // Strip exchange prefix for display
-    const displaySymbol = symbol.replace(/^(FX:|OANDA:|BINANCE:|NASDAQ:|NYSE:|CAPITALCOM:|NSE:|BSE:|NYMEX:)/, '');
-    const priceDelta = ohlcInfo ? (ohlcInfo.close - ohlcInfo.open) : 0;
-    const isUp       = priceDelta >= 0;
+        if (window.TradingView) {
+            initWidget();
+        } else {
+            const existingScript = document.getElementById('tradingview-tv-script');
+            if (existingScript) {
+                existingScript.addEventListener('load', initWidget);
+            } else {
+                const script = document.createElement('script');
+                script.id = 'tradingview-tv-script';
+                script.src = 'https://s3.tradingview.com/tv.js';
+                script.async = true;
+                script.onload = initWidget;
+                document.head.appendChild(script);
+            }
+        }
+    }, [tvSymbol, tvInterval]);
 
     return (
-        <div style={{ background: TV_THEME.bg }} className="w-full h-full flex flex-col relative overflow-hidden">
-
-            {/* ── TradingView-style Top Bar ── */}
-            <div
-                style={{ background: TV_THEME.bg, borderBottom: `1px solid ${TV_THEME.border}` }}
-                className="flex items-center gap-0 px-2 py-0 flex-shrink-0 select-none"
-                style={{ height: '38px', borderBottom: `1px solid ${TV_THEME.border}`, background: TV_THEME.bg }}
-            >
-                {/* Symbol pill */}
-                <div className="flex items-center gap-1.5 pr-3 mr-1" style={{ borderRight: `1px solid ${TV_THEME.border}` }}>
-                    <TrendingUp size={12} style={{ color: TV_THEME.cyan }} />
-                    <span style={{ color: TV_THEME.textBright }} className="font-bold text-sm font-mono tracking-wide">
-                        {displaySymbol}
-                    </span>
-                    <ChevronDown size={11} style={{ color: TV_THEME.textLight }} />
-                </div>
-
-                {/* Current Active Interval Badge */}
-                <div className="flex items-center gap-1 px-2 border-r border-[#2a2e39] text-xs font-mono font-semibold text-cyan-400">
-                    {TIMEFRAMES.find(t => t.value === interval)?.label || `${interval}m`}
-                </div>
-
-                <div style={{ flex: 1 }} />
-
-                {/* OHLC Values — TradingView style */}
-                {ohlcInfo && (
-                    <div className="flex items-center gap-3 font-mono text-[11px] mr-2">
-                        <span style={{ color: TV_THEME.textLight }}>
-                            O <span style={{ color: TV_THEME.textBright }}>{formatOHLC(ohlcInfo.open, symbol)}</span>
-                        </span>
-                        <span style={{ color: TV_THEME.textLight }}>
-                            H <span style={{ color: TV_THEME.green }}>{formatOHLC(ohlcInfo.high, symbol)}</span>
-                        </span>
-                        <span style={{ color: TV_THEME.textLight }}>
-                            L <span style={{ color: TV_THEME.red }}>{formatOHLC(ohlcInfo.low, symbol)}</span>
-                        </span>
-                        <span style={{ color: TV_THEME.textLight }}>
-                            C <span style={{ color: isUp ? TV_THEME.green : TV_THEME.red, fontWeight: 700 }}>
-                                {formatOHLC(ohlcInfo.close, symbol)}
-                            </span>
-                        </span>
-                        <span style={{
-                            color: isUp ? TV_THEME.green : TV_THEME.red,
-                            fontWeight: 600,
-                        }}>
-                            {isUp ? '+' : ''}{formatOHLC(priceDelta, symbol)}
-                        </span>
-                    </div>
-                )}
-
-                {/* Live badge */}
-                {isLive && (
-                    <div className="flex items-center gap-1 mr-2 px-1.5 py-0.5 rounded"
-                        style={{ background: `${TV_THEME.liveGreen}20`, border: `1px solid ${TV_THEME.liveGreen}50` }}>
-                        <Activity size={8} style={{ color: TV_THEME.liveGreen }} className="animate-pulse" />
-                        <span style={{ color: TV_THEME.liveGreen, fontSize: '9px', fontWeight: 700 }} className="font-mono">LIVE</span>
-                    </div>
-                )}
-
-                {/* Refresh */}
-                <button
-                    onClick={() => fetchData(symbol, interval)}
-                    title="Refresh"
-                    className="p-1 rounded transition-all"
-                    style={{ color: TV_THEME.textLight }}
-                    onMouseEnter={e => e.currentTarget.style.color = TV_THEME.textBright}
-                    onMouseLeave={e => e.currentTarget.style.color = TV_THEME.textLight}
-                >
-                    <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
-                </button>
-            </div>
-
-            {/* ── Loading overlay ── */}
-            {loading && (
-                <div
-                    className="absolute inset-0 flex items-center justify-center z-30"
-                    style={{ background: `${TV_THEME.bg}cc`, backdropFilter: 'blur(4px)' }}
-                >
-                    <div className="flex flex-col items-center gap-3">
-                        <div className="w-7 h-7 border-2 rounded-full animate-spin"
-                            style={{ borderColor: `${TV_THEME.cyan}40`, borderTopColor: TV_THEME.cyan }} />
-                        <span style={{ color: TV_THEME.cyan }} className="font-mono text-xs">
-                            Loading {displaySymbol}...
-                        </span>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Error state ── */}
-            {!loading && error && (
-                <div className="absolute inset-0 flex items-center justify-center z-30">
-                    <div className="flex flex-col items-center gap-3 text-center px-8">
-                        <span className="text-3xl">⚠️</span>
-                        <span style={{ color: TV_THEME.red }} className="font-mono text-xs max-w-xs">{error}</span>
-                        <button
-                            onClick={() => fetchData(symbol, interval)}
-                            className="px-4 py-1.5 rounded font-mono text-xs font-bold transition-all"
-                            style={{ background: '#2962ff', color: '#fff' }}
-                        >
-                            Retry
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Chart canvas ── */}
-            <div ref={containerRef} className="flex-1 relative z-10" />
+        <div className="w-full h-full relative bg-[#131722] overflow-hidden">
+            <div ref={containerRef} className="w-full h-full" />
         </div>
     );
 }
